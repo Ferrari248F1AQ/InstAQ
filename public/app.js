@@ -14,7 +14,9 @@ const ICONS = {
 const icon = (k) => `<svg viewBox="0 0 24 24" width="26" height="26" fill="${ICONS[k][0]}" aria-hidden="true"><path d="${ICONS[k][1]}"/></svg>`;
 // Telefono/tablet (iPadOS si presenta come Mac con touch). Su questi dispositivi la condivisione passa SEMPRE dal menu di sistema:
 // non si scaricano file, perché Instagram & co. leggono la libreria foto e non la cartella Download.
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+// Con «Richiedi sito desktop» iOS si presenta come Mac: un Mac vero non ha touch (maxTouchPoints 0), quindi Mac/iPhone + touch = telefono o iPad.
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  || (navigator.maxTouchPoints > 1 && /Mac|iPhone|iPad|iPod|Android/i.test(navigator.platform + ' ' + navigator.userAgent));
 const canShareFiles = isMobile && typeof navigator.share === 'function';
 
 let state = { posts: [], current: null, history: null };
@@ -125,7 +127,7 @@ function editor(p) {
     <div class="actions">
       <button id="link" title="Copia il link di questo post da mandare ai colleghi">🔗 Copia link</button>
       <div class="menu-wrap"><button data-menu="moreMenu" title="Altro">⋯</button>
-        <div class="menu" id="moreMenu"><button id="hist">Cronologia modifiche</button><button class="danger" id="delpost">Elimina post</button></div></div>
+        <div class="menu" id="moreMenu"><button id="hist">Cronologia modifiche</button><button id="diag">Diagnostica dispositivo</button><button class="danger" id="delpost">Elimina post</button></div></div>
     </div>
   </div>
   <div class="status"><span class="mute">Stato</span>${Object.entries(STATUS).map(([k, v]) =>
@@ -318,6 +320,15 @@ function bindEditor(p) {
     e.stopPropagation(); const m = $(b.dataset.menu), open = m.classList.contains('open');
     document.querySelectorAll('.menu').forEach((x) => x.classList.remove('open')); if (!open) m.classList.add('open');
   });
+  $('diag').onclick = () => {
+    let probe = false; try { probe = !!navigator.canShare?.({ files: [new File([new Uint8Array([1])], 'a.png', { type: 'image/png' })] }); } catch {}
+    const rows = [['Riconosciuto come', isMobile ? 'telefono / tablet' : 'computer'], ['Condivisione con foto', canShareFiles ? 'disponibile' : 'NON disponibile'],
+      ['navigator.share', typeof navigator.share === 'function' ? 'sì' : 'no'], ['canShare(file)', probe ? 'sì' : 'no'], ['HTTPS', window.isSecureContext ? 'sì' : 'NO (la condivisione richiede HTTPS)'],
+      ['platform', navigator.platform], ['touch', navigator.maxTouchPoints], ['userAgent', navigator.userAgent]];
+    const el = document.createElement('div'); el.className = 'modal';
+    el.innerHTML = `<div class="dialog"><h2>Diagnostica dispositivo</h2><pre class="diag">${rows.map(([k, v]) => `${k}: ${esc(v)}`).join('\n')}</pre><div class="row-end"><button class="primary" id="dclose">Chiudi</button></div></div>`;
+    document.body.appendChild(el); el.querySelector('#dclose').onclick = () => el.remove(); el.onclick = (e) => { if (e.target === el) el.remove(); };
+  };
   $('hist').onclick = guard(async () => { await flush(); state.history = await api(`/posts/${p.id}/revisions`); render(); });
   $('delpost').onclick = guard(async () => {
     if (!confirm('Eliminare definitivamente il post e le sue foto?')) return;

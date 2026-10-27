@@ -119,3 +119,4 @@ button.big small{font-size:13px;font-weight:400;opacity:.9}
 .lb-nav{top:50%;transform:translateY(-50%);width:48px;height:64px;font-size:34px;border-radius:12px}
 .lb-prev{left:12px}.lb-next{right:12px}
 @media(max-width:760px){.lb-nav{width:36px;height:52px;font-size:28px}.lb-prev{left:4px}.lb-next{right:4px}}
+.diag{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 ui-monospace,monospace;background:var(--bg);padding:10px;border-radius:8px}

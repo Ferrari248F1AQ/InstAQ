@@ -19,6 +19,9 @@ npm test
 
 Il QR usa l'indirizzo con cui apri l'app: per funzionare dal telefono apri l'app dall'hostname Cloudflare, non da `localhost`. Libreria QR inclusa in `public/vendor/qrcode.js` (qrcode-generator, MIT).
 
+## Loghi
+I loghi UnivAQ e DIIIE (`public/img/`, SVG vettoriali) sono estratti dal Manuale di immagine coordinata UnivAQ (feb. 2025, pp. 65-68): versione a colori sul tema chiaro, versione negativa (bianca) sul tema scuro. Il logo `instaq.svg` è l'icona dell'app, usata anche come favicon. Per l'uso dei loghi valgono le regole del manuale (area di rispetto, nessuna modifica); le richieste esterne vanno all'Ufficio Comunicazione.
+
 ## Limiti noti delle piattaforme
 X, WhatsApp, Telegram e LinkedIn accettano il testo via link; **nessun social accetta foto via link**. Per Instagram/Facebook/LinkedIn il tasto copia il testo, scarica le foto già in ordine e apre il sito. Su smartphone il tasto «Condividi» passa testo e foto direttamente all'app scelta. La pubblicazione automatica via API ufficiali (Meta, LinkedIn, X) richiede app e approvazioni dei singoli social: è un'estensione possibile.
 

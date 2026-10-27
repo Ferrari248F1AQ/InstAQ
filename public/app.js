@@ -88,9 +88,11 @@ function bindList() {
 function render() {
   const p = state.current;
   $app.innerHTML = `<div class="layout"><aside>
-    <h1>InstAQ</h1>
+    <div class="brand"><img src="/img/instaq.svg" alt="" width="32" height="32"><h1>InstAQ</h1></div>
     <button class="primary" id="new">+ Nuovo post</button>
     <div id="list" class="list">${listHtml()}</div>
+    <div class="inst">${[['univaq', "Università degli Studi dell'Aquila"], ['diiie', 'DIIIE – Dipartimento di Ingegneria Industriale e dell\'Informazione e di Economia']].map(([k, alt]) =>
+      `<picture><source media="(prefers-color-scheme: dark)" srcset="/img/${k}-neg.svg"><img src="/img/${k}.svg" alt="${alt}"></picture>`).join('')}</div>
     <button class="me" id="name" title="Il tuo nome compare nella cronologia delle modifiche">👤 ${getName() ? esc(getName()) : 'Imposta il tuo nome'}</button>
   </aside><main>${p ? editor(p) : '<div class="empty">Seleziona un post a sinistra<br>o creane uno nuovo.</div>'}</main></div>`;
   bindList();

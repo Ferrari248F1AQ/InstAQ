@@ -5,7 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 8472; // porta non standard, per evitare conflitti
+const HOST = process.env.HOST || '0.0.0.0'; // raggiungibile dalla rete interna (cloudflared)
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -61,10 +62,12 @@ const cookie = (req, name) => {
   const m = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(name + '='));
   return m ? decodeURIComponent(m.slice(name.length + 1)) : null;
 };
-const login = (res, userId) => {
+const login = (req, res, userId) => {
   const token = crypto.randomBytes(32).toString('hex');
   q.run('INSERT INTO sessions(token,user_id) VALUES(?,?)', token, userId);
-  res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000`);
+  // Dietro Cloudflare il browser parla HTTPS: cookie Secure se X-Forwarded-Proto=https
+  const secure = req.secure || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000${secure}`);
 };
 const auth = (req, res, next) => {
   const t = cookie(req, 'sid');
@@ -115,6 +118,8 @@ const upload = multer({
 });
 
 const app = express();
+app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+app.get('/healthz', (_, res) => res.send('ok'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 const api = express.Router();
@@ -127,14 +132,14 @@ api.post('/register', (req, res) => {
   if (!first && teamCode !== TEAM_CODE) return res.status(403).json({ error: 'Codice team errato' });
   if (q.one('SELECT 1 FROM users WHERE email=?', email.toLowerCase())) return res.status(409).json({ error: 'Email già registrata' });
   const r = q.run('INSERT INTO users(name,email,pass_hash) VALUES(?,?,?)', name.trim(), email.toLowerCase(), hash(password));
-  login(res, Number(r.lastInsertRowid));
+  login(req, res, Number(r.lastInsertRowid));
   res.json({ ok: true });
 });
 api.post('/login', (req, res) => {
   const { email, password } = req.body || {};
   const u = q.one('SELECT * FROM users WHERE email=?', String(email || '').toLowerCase());
   if (!u || !verify(String(password || ''), u.pass_hash)) return res.status(401).json({ error: 'Credenziali errate' });
-  login(res, u.id);
+  login(req, res, u.id);
   res.json({ ok: true });
 });
 api.post('/logout', (req, res) => {
@@ -245,6 +250,6 @@ api.post('/posts/:id/revisions/:revId/restore', withPost, (req, res) => {
 api.use((err, req, res, next) => res.status(err.status || 400).json({ error: err.message }));
 
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`InstAQ su http://localhost:${PORT}  — codice team per i colleghi: ${TEAM_CODE}`));
+  app.listen(PORT, HOST, () => console.log(`InstAQ in ascolto su ${HOST}:${PORT}  — codice team per i colleghi: ${TEAM_CODE}`));
 }
 module.exports = { app };

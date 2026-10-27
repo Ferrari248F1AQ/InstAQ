@@ -1,0 +1,22 @@
+[Unit]
+Description=InstAQ (post social del team)
+After=network.target
+
+[Service]
+Type=simple
+User=instaq
+WorkingDirectory=/opt/instaq
+Environment=PORT=8472
+Environment=HOST=0.0.0.0
+Environment=DATA_DIR=/var/lib/instaq
+ExecStart=/usr/bin/node --no-warnings server.js
+Restart=on-failure
+RestartSec=3
+# hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/instaq
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -23,7 +23,7 @@ Il QR usa l'indirizzo con cui apri l'app: per funzionare dal telefono apri l'app
 X, WhatsApp, Telegram e LinkedIn accettano il testo via link; **nessun social accetta foto via link**. Per Instagram/Facebook/LinkedIn il tasto copia il testo, scarica le foto già in ordine e apre il sito. Su smartphone il tasto «Condividi» passa testo e foto direttamente all'app scelta. La pubblicazione automatica via API ufficiali (Meta, LinkedIn, X) richiede app e approvazioni dei singoli social: è un'estensione possibile.
 
 ## Deploy su Raspberry Pi + Cloudflare Tunnel
-Porta di default **47213** (cambiabile con `PORT`), in ascolto su `0.0.0.0` (`HOST`). `deploy/install.sh` controlla le porte in ascolto e, se la 47213 è occupata, sceglie la prima libera successiva (oppure `sudo PORT=xxxx ./deploy/install.sh`; se la porta data è occupata si ferma).
+Porta di default **47213** (cambiabile con `PORT`), in ascolto su `0.0.0.0` (`HOST`). `deploy/install.sh` controlla le porte in ascolto e, se la 47213 è occupata, sceglie la prima libera successiva (oppure `sudo PORT=xxxx ./deploy/install.sh`; se la porta data è occupata si ferma). Negli aggiornamenti rieseguendo lo script si riusa la porta già configurata e il servizio viene riavviato.
 
 **Installazione** (systemd, Node ≥ 22.13, Pi 5 a 64 bit):
 ```

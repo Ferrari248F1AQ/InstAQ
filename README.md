@@ -12,7 +12,7 @@ npm test
 
 ## Funzioni
 - **Post**: titolo interno, testo, stato (Bozza / Da rivedere / Pronto / Pubblicato), contatori caratteri per X, LinkedIn, Instagram, Facebook.
-- **Foto**: upload multiplo/drag&drop, riordino con drag&drop o frecce, ★ foto principale (esce per prima nella condivisione).
+- **Foto**: upload multiplo/drag&drop, riordino con drag&drop o frecce; la prima è la principale. Clic/tocco su una foto per vederla ingrandita (frecce, tasti ←/→, swipe, Esc).
 - **Condivisione interna**: link diretto a ogni post, chiunque lo apra può modificarlo.
 - **Cronologia** (stile git): ogni modifica registra autore e riepilogo; si può ripristinare un testo precedente.
 - **Condivisione**: su telefono «Condividi con un'altra app» (testo + foto in ordine, nell'app scelta) è l'azione consigliata. Su computer un QR code porta il post sul telefono; in alternativa Instagram/Facebook/LinkedIn copiano il testo, scaricano le foto con nomi ordinati (`titolo_foto-01-di-03_PRINCIPALE.jpg`) e mostrano una guida passo-passo. X, WhatsApp, Telegram aprono con il testo già scritto.

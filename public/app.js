@@ -12,8 +12,10 @@ const ICONS = {
   linkedin: ['#0A66C2', 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z']
 };
 const icon = (k) => `<svg viewBox="0 0 24 24" width="26" height="26" fill="${ICONS[k][0]}" aria-hidden="true"><path d="${ICONS[k][1]}"/></svg>`;
-// Il menu di condivisione del sistema (con le foto) esiste solo su telefoni/tablet
-const canShareFiles = (() => { try { return !!navigator.canShare?.({ files: [new File([''], 'a.png', { type: 'image/png' })] }); } catch { return false; } })();
+// Telefono/tablet (iPadOS si presenta come Mac con touch). Su questi dispositivi la condivisione passa SEMPRE dal menu di sistema:
+// non si scaricano file, perché Instagram & co. leggono la libreria foto e non la cartella Download.
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const canShareFiles = isMobile && typeof navigator.share === 'function';
 
 let state = { posts: [], current: null, history: null };
 let saveTimer = null;
@@ -156,7 +158,7 @@ const NETS = [
 function publishHtml(p) {
   const top = canShareFiles
     ? `<button class="primary big" data-s="native">📱 Condividi con un'altra app<small>Consigliato · manda le foto già in ordine all'app che scegli; il testo viene copiato per incollarlo</small></button>`
-    : `<div class="reco"><div class="qr">${qrSvg(postLink(p.id))}</div><div>
+    : isMobile ? '' : `<div class="reco"><div class="qr">${qrSvg(postLink(p.id))}</div><div>
         <b>Consigliato: continua dal telefono</b>
         <p>Inquadra il codice con la fotocamera: si apre questo post sul telefono. Lì, con «Condividi con un'altra app», mandi le foto già in ordine a Instagram o a qualsiasi altra app senza scaricare nulla (il testo viene copiato, lo incolli con un tocco).</p></div></div>`;
   return `<section>
@@ -172,18 +174,19 @@ function publishHtml(p) {
 // Guida passo-passo. Telefono: menu di condivisione di sistema (le app ricevono le foto, quasi mai il testo).
 // Computer: testo copiato, foto scaricate, poi si apre il sito del social.
 const PASTE_PHONE = 'Il testo non arriva da solo: nel campo della didascalia <b>tieni premuto</b> e scegli <b>Incolla</b>.';
+const SAVE_PHONE = 'Se l\'app non mostra le foto: nel menu scegli <b>Salva immagini</b> (finiscono nella libreria), poi selezionale <b>nell\'ordine 1, 2, 3…</b>';
 const PASTE_PC = 'Incolla il testo (<b>Ctrl+V</b>, su Mac <b>⌘V</b>).';
 const ORDER = (n) => `<b>nell'ordine foto-01, foto-02…</b> (la 01 è la principale)`;
 const GUIDES = {
   instagram: { name: 'Instagram', url: 'https://www.instagram.com/',
     pc: (n) => ['Su Instagram clicca <b>Crea</b> (+) → <b>Post</b>.', n ? `Seleziona le ${n} foto dalla cartella Download ${ORDER(n)}.` : 'Scegli le foto.', PASTE_PC.replace('Incolla', 'Nella didascalia incolla') + ' Poi pubblica.'],
-    phone: () => ['Nel menu che si apre scegli <b>Instagram</b> → <b>Post</b>.', PASTE_PHONE, 'Controlla l\'ordine delle foto e pubblica.'] },
+    phone: () => ['Nel menu che si apre scegli <b>Instagram</b> → <b>Post</b>.', PASTE_PHONE, SAVE_PHONE] },
   facebook: { name: 'Facebook', url: 'https://www.facebook.com/',
     pc: (n) => ['Su Facebook clicca «A cosa stai pensando?».', PASTE_PC, n ? `Aggiungi le ${n} foto ${ORDER(n)}.` : 'Pubblica.'],
-    phone: () => ['Nel menu che si apre scegli <b>Facebook</b>.', PASTE_PHONE, 'Controlla l\'ordine delle foto e pubblica.'] },
+    phone: () => ['Nel menu che si apre scegli <b>Facebook</b>.', PASTE_PHONE, SAVE_PHONE] },
   linkedin: { name: 'LinkedIn', url: 'https://www.linkedin.com/feed/',
     pc: (n) => ['In LinkedIn clicca <b>Inizia un post</b>.', PASTE_PC, n ? `Clicca l'icona immagine e aggiungi le ${n} foto ${ORDER(n)}. Poi pubblica.` : 'Pubblica.'],
-    phone: () => ['Nel menu che si apre scegli <b>LinkedIn</b>.', PASTE_PHONE, 'Controlla l\'ordine delle foto e pubblica.'] },
+    phone: () => ['Nel menu che si apre scegli <b>LinkedIn</b>.', PASTE_PHONE, SAVE_PHONE] },
   native: { name: 'un\'altra app', url: null,
     pc: () => [], phone: () => ['Nel menu che si apre scegli l\'app.', 'Instagram e altre app <b>non ricevono il testo</b>: se manca, tieni premuto nel campo della didascalia e scegli <b>Incolla</b>.'] },
 };
@@ -201,7 +204,11 @@ function showGuide(kind, text, files, phone, copied) {
   el.querySelector('#gclose').onclick = close;
   el.querySelector('#gopen').onclick = async () => {
     if (!phone) { open(g.url); return close(); }
-    try { await navigator.share(n ? { files, text } : { text }); close(); }
+    try {
+      const data = n ? { files, text } : { text };
+      if (n && navigator.canShare && !navigator.canShare(data)) { toast('Questo browser non può inviare le foto: aprilo con Safari o Chrome'); await navigator.share({ text }); return close(); }
+      await navigator.share(data); close();
+    }
     catch (err) { if (err.name !== 'AbortError') toast('Condivisione non riuscita: ' + err.message); }
   };
 }
@@ -213,6 +220,30 @@ function historyHtml(p) {
       return `<div><span>${esc(r.summary)} <span class="mute">— ${esc(r.author)}, ${esc(r.created_at)}</span></span>
       ${changed ? `<button data-rev="${r.id}">Torna a questo testo</button>` : ''}</div>`;
     }).join('')}</div></section>`;
+}
+
+// Foto ingrandita: clic sulla miniatura; frecce o tasti ←/→ per scorrere, Esc o clic sullo sfondo per chiudere, swipe su touch
+function openLightbox(p, start) {
+  const imgs = p.images; let i = start;
+  const el = document.createElement('div'); el.className = 'lightbox'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Foto ingrandita');
+  el.innerHTML = `<button class="lb-close" aria-label="Chiudi">✕</button>
+    ${imgs.length > 1 ? '<button class="lb-nav lb-prev" aria-label="Foto precedente">‹</button><button class="lb-nav lb-next" aria-label="Foto successiva">›</button>' : ''}
+    <figure><img alt=""><figcaption></figcaption></figure>`;
+  const img = el.querySelector('img'), cap = el.querySelector('figcaption');
+  const show = (n) => {
+    i = (n + imgs.length) % imgs.length; const im = imgs[i];
+    img.src = imgUrl(im.id); img.alt = im.original;
+    cap.textContent = `${i + 1} / ${imgs.length}${i === 0 ? ' · Principale' : ''} · ${im.original}`;
+  };
+  const key = (e) => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowLeft') show(i - 1); else if (e.key === 'ArrowRight') show(i + 1); };
+  const close = () => { el.remove(); document.removeEventListener('keydown', key); };
+  el.onclick = (e) => { if (e.target === el || e.target.tagName === 'FIGURE') close(); };
+  el.querySelector('.lb-close').onclick = close;
+  if (imgs.length > 1) { el.querySelector('.lb-prev').onclick = () => show(i - 1); el.querySelector('.lb-next').onclick = () => show(i + 1); }
+  let x0 = null;
+  el.ontouchstart = (e) => { x0 = e.touches[0].clientX; };
+  el.ontouchend = (e) => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 50 && imgs.length > 1) show(i + (dx < 0 ? 1 : -1)); };
+  document.body.appendChild(el); document.addEventListener('keydown', key); show(i);
 }
 
 function bindEditor(p) {
@@ -249,6 +280,7 @@ function bindEditor(p) {
     const id = Number(el.dataset.id);
     el.ondragstart = () => { dragId = id; el.classList.add('drag'); };
     el.ondragend = () => el.classList.remove('drag');
+    el.onclick = (e) => { if (!e.target.closest('button')) openLightbox(p, ids().indexOf(id)); };
     el.ondragover = (e) => { if (dragId != null) e.preventDefault(); };
     el.ondrop = (e) => {
       if (dragId == null || dragId === id) return; e.preventDefault();
@@ -327,6 +359,7 @@ async function share(kind, p, text) {
     // Nessun social accetta il testo insieme alle foto via link: copia + guida (telefono: menu di sistema, computer: download)
     case 'native': case 'instagram': case 'facebook': case 'linkedin': {
       const phone = canShareFiles;
+      if (isMobile && !phone) { await copy(text); return toast('Testo copiato. Per inviare anche le foto apri l\'app con un indirizzo HTTPS (quello di Cloudflare): il menu di condivisione del telefono lo richiede'); }
       if (kind === 'native' && !phone) return toast('Apri questo post dal telefono per condividere con le altre app');
       const copied = await copy(text);
       const files = p.images.length ? await imageFiles(p) : [];

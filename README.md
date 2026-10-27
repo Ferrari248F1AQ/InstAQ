@@ -8,12 +8,12 @@ npm install
 npm start          # http://localhost:3000
 npm test
 ```
-Il primo utente registrato è libero; i colleghi si registrano con il **codice team** mostrato nella barra laterale (o `TEAM_CODE=...` come variabile d'ambiente). Dati in `data/` (SQLite + foto); cambiabile con `DATA_DIR`. Richiede Node ≥ 22.13.
+**Nessun login**: chi raggiunge l'app vede e modifica tutti i post (pensata per uso interno). Ogni post ha un link diretto (`…/#/p/ID`, tasto «🔗 Copia link») da girare ai colleghi. Il nome inserito nella barra laterale (facoltativo, salvato nel browser) compare solo nella cronologia. Dati in `data/` (SQLite + foto); cambiabile con `DATA_DIR`. Richiede Node ≥ 22.13.
 
 ## Funzioni
 - **Post**: titolo interno, testo, stato (Bozza / Da rivedere / Pronto / Pubblicato), contatori caratteri per X, LinkedIn, Instagram, Facebook.
 - **Foto**: upload multiplo/drag&drop, riordino con drag&drop o frecce, ★ foto principale (esce per prima nella condivisione).
-- **Team**: il proprietario sceglie chi vede e **modifica** il post; i collaboratori modificano testo, foto e stato.
+- **Condivisione interna**: link diretto a ogni post, chiunque lo apra può modificarlo.
 - **Cronologia** (stile git): ogni modifica registra autore e riepilogo; si può ripristinare un testo precedente.
 - **Condivisione**: Condividi nativo (testo + foto, su mobile apre Instagram/WhatsApp ecc.), X, WhatsApp, Telegram, LinkedIn, Facebook, Instagram, Copia testo, Scarica foto.
 
@@ -28,12 +28,11 @@ Porta di default **8472** (cambiabile con `PORT`), in ascolto su `0.0.0.0` (`HOS
 git clone <repo> && cd InstAQ
 sudo ./deploy/install.sh
 sudo systemctl status instaq     # log: journalctl -u instaq -f
-sudo cat /var/lib/instaq/team_code
 ```
 Se 8472 è occupata: `sudo systemctl edit instaq` e imposta `Environment=PORT=xxxx`.
 
 **Opzione B – Docker**: `docker compose up -d --build` (cambia la porta a sinistra in `docker-compose.yml`). Dati nel volume `instaq-data`.
 
-**Cloudflare Tunnel**: aggiungi un *public hostname* (dashboard Zero Trust → Networks → Tunnels → Public hostname) con servizio `HTTP` → `localhost:8472` (o `IP-del-Pi:8472` se cloudflared gira altrove). L'app rileva `X-Forwarded-Proto: https` e imposta il cookie di sessione `Secure`. Opzionale: proteggi l'hostname con Cloudflare Access come secondo livello.
+**Cloudflare Tunnel**: aggiungi un *public hostname* (dashboard Zero Trust → Networks → Tunnels → Public hostname) con servizio `HTTP` → `localhost:8472` (o `IP-del-Pi:8472` se cloudflared gira altrove). L'app rileva `X-Forwarded-Proto: https` e imposta il cookie di sessione `Secure`. **Poiché l'app non ha login, l'unica protezione è l'accesso al tunnel**: se l'hostname è pubblico, chiunque conosca l'URL può leggere e modificare i post. Per limitarlo usa Cloudflare Access (policy sulle email aziendali) davanti all'hostname, oppure non pubblicarlo.
 
 Note: `GET /healthz` per i controlli di stato; Cloudflare limita il body a 100 MB per richiesta (caricare le foto in più tornate se sono moltissime). Backup: copia `/var/lib/instaq` (database + foto).

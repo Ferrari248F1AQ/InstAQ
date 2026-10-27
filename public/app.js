@@ -2,12 +2,16 @@ const $app = document.getElementById('app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const STATUS = { draft: 'Bozza', review: 'Da rivedere', ready: 'Pronto', published: 'Pubblicato' };
 const LIMITS = { X: 280, LinkedIn: 3000, Instagram: 2200, Facebook: 63206 };
-let state = { me: null, users: [], posts: [], current: null, dirty: false, history: null };
+let state = { posts: [], current: null, dirty: false, history: null };
+const getName = () => { try { return localStorage.getItem('instaq-name') || ''; } catch { return ''; } };
+const setName = (n) => { try { localStorage.setItem('instaq-name', n); } catch {} };
 
 async function api(url, opts = {}) {
+  const headers = { 'X-Author': encodeURIComponent(getName()) };
   if (opts.body && !(opts.body instanceof FormData)) {
-    opts = { ...opts, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts.body) };
+    headers['Content-Type'] = 'application/json'; opts = { ...opts, body: JSON.stringify(opts.body) };
   }
+  opts = { ...opts, headers };
   const r = await fetch('/api' + url, opts);
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || 'Errore ' + r.status);
@@ -20,61 +24,47 @@ function toast(msg) {
 }
 const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message); } };
 
-// ---------- auth ----------
-function renderAuth(mode = 'login') {
-  const reg = mode === 'register';
-  $app.innerHTML = `<form class="auth card" id="f">
-    <h1>InstAQ</h1><div class="mute">Post social del team: testo, foto, condivisione.</div>
-    ${reg ? '<input name="name" placeholder="Nome" required>' : ''}
-    <input name="email" type="email" placeholder="Email" required>
-    <input name="password" type="password" placeholder="Password (min 8)" required>
-    ${reg ? '<input name="teamCode" placeholder="Codice team (vuoto se sei il primo)">' : ''}
-    <button class="primary">${reg ? 'Registrati' : 'Accedi'}</button>
-    <a href="#" id="sw">${reg ? 'Ho già un account' : 'Crea account'}</a></form>`;
-  document.getElementById('sw').onclick = (e) => { e.preventDefault(); renderAuth(reg ? 'login' : 'register'); };
-  document.getElementById('f').onsubmit = guard(async (e) => {
-    e.preventDefault();
-    await api(reg ? '/register' : '/login', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) });
-    await boot();
-  });
-}
-
 // ---------- data ----------
 async function loadPosts(keepId) {
   state.posts = await api('/posts');
   const id = keepId ?? state.current?.id;
   state.current = state.posts.find((p) => p.id === id) || null;
 }
+const hashId = () => Number((location.hash.match(/^#\/p\/(\d+)/) || [])[1]) || null;
+const postLink = (id) => `${location.origin}${location.pathname}#/p/${id}`;
+function select(id) {
+  state.current = state.posts.find((x) => x.id === id) || null; state.dirty = false; state.history = null;
+  const h = id ? `#/p/${id}` : '';
+  if (location.hash !== h) history.replaceState(null, '', location.pathname + h);
+}
 async function boot() {
-  try { state.me = await api('/me'); } catch { return renderAuth(); }
-  state.users = await api('/users');
-  await loadPosts();
+  await loadPosts(hashId());
   render();
 }
+window.addEventListener('hashchange', () => { if (hashId() !== state.current?.id) { select(hashId()); render(); } });
 const imgUrl = (id) => `/api/images/${id}`;
 
 // ---------- render ----------
 function render() {
-  const { me, posts, current: p } = state;
+  const { posts, current: p } = state;
   $app.innerHTML = `<div class="layout"><aside>
-    <div class="row spread"><h1>InstAQ</h1><button id="out" title="Esci">Esci</button></div>
-    <div class="mute">${esc(me.name)} · codice team: <b>${esc(me.teamCode)}</b></div>
+    <h1>InstAQ</h1>
+    <input id="name" placeholder="Il tuo nome (per la cronologia)" value="${esc(getName())}">
     <button class="primary" id="new">+ Nuovo post</button>
     ${posts.map((x) => `<div class="post-item ${p?.id === x.id ? 'active' : ''}" data-id="${x.id}">
       ${x.coverId ? `<img src="${imgUrl(x.coverId)}" alt="">` : '<div class="ph"></div>'}
       <div style="min-width:0"><div class="t">${esc(x.title) || 'Senza titolo'}</div>
-      <div class="row"><span class="badge ${x.status}">${STATUS[x.status]}</span>
-      <span class="mute">${x.isOwner ? 'tuo' : esc(x.owner.name)}</span></div></div></div>`).join('')
+      <div class="row"><span class="badge ${x.status}">${STATUS[x.status]}</span></div></div></div>`).join('')
       || '<div class="mute">Nessun post. Creane uno!</div>'}
   </aside><main>${p ? editor(p) : '<div class="mute">Seleziona o crea un post.</div>'}</main></div>`;
-  document.getElementById('out').onclick = guard(async () => { await api('/logout', { method: 'POST' }); renderAuth(); });
+  document.getElementById('name').onchange = (e) => setName(e.target.value.trim());
   document.getElementById('new').onclick = guard(async () => {
     const np = await api('/posts', { method: 'POST', body: { title: 'Nuovo post' } });
-    await loadPosts(np.id); state.history = null; render();
+    await loadPosts(np.id); select(np.id); render();
   });
   document.querySelectorAll('.post-item').forEach((el) => el.onclick = () => {
     if (state.dirty && !confirm('Ci sono modifiche non salvate. Cambiare post?')) return;
-    state.current = state.posts.find((x) => x.id == el.dataset.id); state.dirty = false; state.history = null; render();
+    select(Number(el.dataset.id)); render();
   });
   if (p) bindEditor(p);
 }
@@ -83,7 +73,7 @@ function editor(p) {
   return `
   <div class="card">
     <div class="row spread"><h2>Contenuto</h2>
-      <select id="status" style="width:auto">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+      <span class="row"><button id="link">🔗 Copia link</button><select id="status" style="width:auto">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></span></div>
     <input id="title" placeholder="Titolo interno" value="${esc(p.title)}">
     <textarea id="text" placeholder="Testo del post…">${esc(p.text)}</textarea>
     <div class="row" id="counts"></div>
@@ -101,7 +91,7 @@ function editor(p) {
       <input type="file" id="file" accept="image/*" multiple hidden></label>
   </div>
   <div class="card"><h2>Condividi sui social</h2>
-    <div class="mute">Il testo e le foto vengono presi dalla versione salvata nel campo qui sopra.</div>
+    <div class="mute">Per condividere il post con i colleghi usa «Copia link» in alto.</div>
     <div class="share">
       <button class="primary" data-s="native">📤 Condividi (testo + foto)</button>
       <button data-s="instagram">Instagram</button><button data-s="x">X</button>
@@ -110,17 +100,10 @@ function editor(p) {
       <button data-s="copy">Copia testo</button><button data-s="download">Scarica foto</button>
     </div>
   </div>
-  <div class="card"><h2>Team</h2>
-    <div class="mute">Proprietario: ${esc(p.owner.name)}. ${p.isOwner ? 'Scegli chi può vedere e modificare questo post:' : 'Puoi modificare il post; solo il proprietario gestisce la condivisione.'}</div>
-    <div class="chips">${state.users.filter((u) => u.id !== p.owner.id).map((u) => {
-      const on = p.members.some((m) => m.id === u.id);
-      return `<span class="chip ${on ? 'on' : ''}" data-u="${u.id}">${esc(u.name)}</span>`;
-    }).join('') || '<span class="mute">Nessun altro utente registrato. Dai ai colleghi il codice team.</span>'}</div>
-  </div>
   <div class="card"><div class="row spread"><h2>Cronologia</h2><button id="hist">${state.history ? 'Nascondi' : 'Mostra'}</button></div>
     ${state.history ? `<div class="hist">${state.history.map((r) => `<div><span>${esc(r.summary)} <span class="mute">— ${esc(r.author)}, ${esc(r.created_at)}</span></span>
       <button data-rev="${r.id}">Ripristina testo</button></div>`).join('')}</div>` : ''}</div>
-  ${p.isOwner ? '<button class="danger" id="delpost">Elimina post</button>' : ''}`;
+  <button class="danger" id="delpost">Elimina post</button>`;
 }
 
 function bindEditor(p) {
@@ -184,12 +167,7 @@ function bindEditor(p) {
     }));
   });
 
-  // team
-  document.querySelectorAll('.chip').forEach((c) => c.onclick = guard(async () => {
-    if (!p.isOwner) return toast('Solo il proprietario gestisce la condivisione');
-    const uid = Number(c.dataset.u), cur = p.members.map((m) => m.id);
-    await upd({ members: cur.includes(uid) ? cur.filter((x) => x !== uid) : [...cur, uid] }); render();
-  }));
+  $('link').onclick = guard(async () => { await copy(postLink(p.id)); toast('Link copiato'); });
 
   // cronologia
   $('hist').onclick = guard(async () => {
@@ -201,7 +179,7 @@ function bindEditor(p) {
   }));
   if ($('delpost')) $('delpost').onclick = guard(async () => {
     if (!confirm('Eliminare definitivamente il post e le sue foto?')) return;
-    await api('/posts/' + p.id, { method: 'DELETE' }); state.current = null; await loadPosts(); render();
+    await api('/posts/' + p.id, { method: 'DELETE' }); await loadPosts(); select(null); render();
   });
 
   // condivisione: usa sempre la versione correntemente in editor

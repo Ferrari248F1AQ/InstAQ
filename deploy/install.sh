@@ -20,4 +20,4 @@ install -m 644 deploy/instaq.service /etc/systemd/system/instaq.service
 systemctl daemon-reload
 systemctl enable --now instaq
 sleep 1
-echo "OK → http://$(hostname -I | awk '{print $1}'):8472  (codice team: sudo cat /var/lib/instaq/team_code)"
+echo "OK → http://$(hostname -I | awk '{print $1}'):8472"

@@ -6,7 +6,5 @@ services:
       - "8472:8472"   # cambia la parte a sinistra se la porta è occupata
     volumes:
       - instaq-data:/data
-    # environment:
-    #   TEAM_CODE: scegli-un-codice
 volumes:
   instaq-data:

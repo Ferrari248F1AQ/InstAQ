@@ -151,7 +151,7 @@ const qrSvg = (url) => { const q = qrcode(0, 'M'); q.addData(url); q.make(); ret
 const NETS = [
   ['instagram', 'Instagram', 'copia il testo e scarica le foto', 'foto in ordine · testo copiato da incollare'],
   ['facebook', 'Facebook', 'copia il testo e scarica le foto', 'foto in ordine · testo copiato da incollare'],
-  ['linkedin', 'LinkedIn', 'copia il testo e scarica le foto', 'foto in ordine · testo copiato da incollare'],
+  ['linkedin', 'LinkedIn', 'copia il testo e scarica le foto', 'salva le foto in libreria · testo copiato da incollare'],
   ['x', 'X', 'testo già scritto', 'testo già scritto'],
   ['whatsapp', 'WhatsApp', 'testo già scritto', 'testo già scritto'],
   ['telegram', 'Telegram', 'testo già scritto', 'testo già scritto'],
@@ -187,28 +187,33 @@ const GUIDES = {
     phone: () => ['Nel menu che si apre scegli <b>Facebook</b>.', PASTE_PHONE, SAVE_PHONE] },
   linkedin: { name: 'LinkedIn', url: 'https://www.linkedin.com/feed/',
     pc: (n) => ['In LinkedIn clicca <b>Inizia un post</b>.', PASTE_PC, n ? `Clicca l'icona immagine e aggiungi le ${n} foto ${ORDER(n)}. Poi pubblica.` : 'Pubblica.'],
-    phone: () => ['Nel menu che si apre scegli <b>LinkedIn</b>.', PASTE_PHONE, SAVE_PHONE] },
+    phone: () => ['Apri LinkedIn → <b>Inizia un post</b> e incolla il testo.'],
+    // LinkedIn (come il selettore foto di iOS) legge solo la Libreria foto: le foto vanno salvate lì con «Salva immagini»
+    library: (n) => [`Tocca <b>Salva le foto</b> e nel menu scegli <b>Salva ${n} immagini</b> (non «Salva su File»: LinkedIn legge solo la libreria foto).`,
+      'Tocca <b>Apri LinkedIn</b> → <b>Inizia un post</b> e incolla il testo (tieni premuto nel campo e scegli <b>Incolla</b>).',
+      `Aggiungi le foto dalla libreria: sono le ultime ${n} salvate e <b>la più vecchia delle ${n} è la principale</b>. Toccale in quell'ordine.`] },
   native: { name: 'un\'altra app', url: null,
     pc: () => [], phone: () => ['Nel menu che si apre scegli l\'app.', 'Instagram e altre app <b>non ricevono il testo</b>: se manca, tieni premuto nel campo della didascalia e scegli <b>Incolla</b>.'] },
 };
 function showGuide(kind, text, files, phone, copied) {
-  const g = GUIDES[kind], n = files.length;
+  const g = GUIDES[kind], n = files.length, lib = phone && !!g.library && n > 0;
   const el = document.createElement('div'); el.className = 'modal';
   el.innerHTML = `<div class="dialog"><h2>${phone ? 'Condividi su' : 'Pubblica su'} ${g.name}</h2>
     <div class="done">${copied ? '<span>✓ Testo copiato</span>' : '<span class="warn">⚠ Copia non riuscita: copia il testo qui sotto</span>'}${n ? `<span>✓ ${n} foto ${phone ? 'pronte' : 'scaricate'}</span>` : ''}</div>
     ${copied ? '' : `<textarea readonly class="copybox">${esc(text)}</textarea>`}
-    <ol>${(phone ? g.phone(n) : g.pc(n)).map((x) => `<li>${x}</li>`).join('')}</ol>
-    <div class="row-end"><button id="gclose">Chiudi</button><button class="primary" id="gopen">${phone ? "Scegli l'app →" : `Apri ${g.name} ↗`}</button></div></div>`;
+    <ol>${(lib ? g.library(n) : phone ? g.phone(n) : g.pc(n)).map((x) => `<li>${x}</li>`).join('')}</ol>
+    <div class="row-end"><button id="gclose">Chiudi</button>${lib ? `<button id="glink">Apri ${g.name} ↗</button>` : ''}<button class="primary" id="gopen">${lib ? 'Salva le foto →' : phone ? "Scegli l'app →" : `Apri ${g.name} ↗`}</button></div></div>`;
   document.body.appendChild(el);
   const close = () => el.remove();
   el.onclick = (e) => { if (e.target === el) close(); };
   el.querySelector('#gclose').onclick = close;
+  if (lib) el.querySelector('#glink').onclick = () => open(g.url);
   el.querySelector('#gopen').onclick = async () => {
     if (!phone) { open(g.url); return close(); }
     try {
-      const data = n ? { files, text } : { text };
+      const data = lib ? { files } : n ? { files, text } : { text };   // «Salva immagini» compare solo se nel menu ci sono soltanto immagini
       if (n && navigator.canShare && !navigator.canShare(data)) { toast('Questo browser non può inviare le foto: aprilo con Safari o Chrome'); await navigator.share({ text }); return close(); }
-      await navigator.share(data); close();
+      await navigator.share(data); if (!lib) close();   // in modalità libreria resta aperta: serve ancora «Apri LinkedIn»
     }
     catch (err) { if (err.name !== 'AbortError') toast('Condivisione non riuscita: ' + err.message); }
   };

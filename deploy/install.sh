@@ -11,13 +11,24 @@ if [ "$NODE_MAJOR" -lt 22 ]; then
   exit 1
 fi
 
+# Una porta è libera se Node riesce a metterla in ascolto (test definitivo, nessuna dipendenza da ss/netstat)
+in_use() { ! node -e 'const s=require("net").createServer();s.on("error",()=>process.exit(1));s.listen(+process.argv[1],"0.0.0.0",()=>s.close(()=>process.exit(0)))' "$1"; }
+if [ -z "${PORT:-}" ]; then
+  PORT=47213
+  while in_use "$PORT"; do PORT=$((PORT + 1)); done
+elif in_use "$PORT"; then
+  echo "La porta $PORT è già in uso."; exit 1
+fi
+echo "Porta scelta: $PORT"
+
 id instaq >/dev/null 2>&1 || useradd --system --home /var/lib/instaq --shell /usr/sbin/nologin instaq
 mkdir -p /opt/instaq /var/lib/instaq
 rsync -a --delete --exclude node_modules --exclude data --exclude .git ./ /opt/instaq/
 (cd /opt/instaq && npm ci --omit=dev)
 chown -R instaq: /var/lib/instaq
 install -m 644 deploy/instaq.service /etc/systemd/system/instaq.service
+sed -i "s/^Environment=PORT=.*/Environment=PORT=$PORT/" /etc/systemd/system/instaq.service
 systemctl daemon-reload
 systemctl enable --now instaq
 sleep 1
-echo "OK → http://$(hostname -I | awk '{print $1}'):8472"
+echo "OK → http://$(hostname -I | awk '{print $1}'):$PORT  (in Cloudflare: servizio HTTP → localhost:$PORT)"

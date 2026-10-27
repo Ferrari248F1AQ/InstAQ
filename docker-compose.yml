@@ -3,7 +3,7 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "8472:8472"   # cambia la parte a sinistra se la porta è occupata
+      - "${INSTAQ_PORT:-47213}:47213"   # porta host: INSTAQ_PORT=xxxx docker compose up -d
     volumes:
       - instaq-data:/data
 volumes:

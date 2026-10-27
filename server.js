@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-const PORT = Number(process.env.PORT) || 8472; // porta non standard, per evitare conflitti
+const PORT = Number(process.env.PORT) || 47213; // porta non standard, per evitare conflitti
 const HOST = process.env.HOST || '0.0.0.0'; // raggiungibile dalla rete interna (cloudflared)
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');

@@ -21,7 +21,7 @@ npm test
 X, WhatsApp, Telegram e LinkedIn accettano il testo via link; **nessun social accetta foto via link**. Per Instagram/Facebook/LinkedIn il tasto copia il testo, scarica le foto già in ordine e apre il sito. Su smartphone il tasto «Condividi» passa testo e foto direttamente all'app scelta. La pubblicazione automatica via API ufficiali (Meta, LinkedIn, X) richiede app e approvazioni dei singoli social: è un'estensione possibile.
 
 ## Deploy su Raspberry Pi + Cloudflare Tunnel
-Porta di default **8472** (cambiabile con `PORT`), in ascolto su `0.0.0.0` (`HOST`). Nessuna porta standard (80/443/3000) è usata.
+Porta di default **47213** (cambiabile con `PORT`), in ascolto su `0.0.0.0` (`HOST`). `deploy/install.sh` controlla le porte in ascolto e, se la 47213 è occupata, sceglie la prima libera successiva (oppure `sudo PORT=xxxx ./deploy/install.sh`; se la porta data è occupata si ferma). 
 
 **Opzione A – systemd** (Node ≥ 22.13, Pi 5 a 64 bit):
 ```
@@ -29,10 +29,9 @@ git clone <repo> && cd InstAQ
 sudo ./deploy/install.sh
 sudo systemctl status instaq     # log: journalctl -u instaq -f
 ```
-Se 8472 è occupata: `sudo systemctl edit instaq` e imposta `Environment=PORT=xxxx`.
 
-**Opzione B – Docker**: `docker compose up -d --build` (cambia la porta a sinistra in `docker-compose.yml`). Dati nel volume `instaq-data`.
+**Opzione B – Docker**: `docker compose up -d --build` (porta host diversa: `INSTAQ_PORT=xxxx docker compose up -d`). Dati nel volume `instaq-data`.
 
-**Cloudflare Tunnel**: aggiungi un *public hostname* (dashboard Zero Trust → Networks → Tunnels → Public hostname) con servizio `HTTP` → `localhost:8472` (o `IP-del-Pi:8472` se cloudflared gira altrove). L'app rileva `X-Forwarded-Proto: https` e imposta il cookie di sessione `Secure`. **Poiché l'app non ha login, l'unica protezione è l'accesso al tunnel**: se l'hostname è pubblico, chiunque conosca l'URL può leggere e modificare i post. Per limitarlo usa Cloudflare Access (policy sulle email aziendali) davanti all'hostname, oppure non pubblicarlo.
+**Cloudflare Tunnel**: aggiungi un *public hostname* (dashboard Zero Trust → Networks → Tunnels → Public hostname) con servizio `HTTP` → `localhost:47213` (o `IP-del-Pi:47213` se cloudflared gira altrove). L'app rileva `X-Forwarded-Proto: https` e imposta il cookie di sessione `Secure`. **Poiché l'app non ha login, l'unica protezione è l'accesso al tunnel**: se l'hostname è pubblico, chiunque conosca l'URL può leggere e modificare i post. Per limitarlo usa Cloudflare Access (policy sulle email aziendali) davanti all'hostname, oppure non pubblicarlo.
 
 Note: `GET /healthz` per i controlli di stato; Cloudflare limita il body a 100 MB per richiesta (caricare le foto in più tornate se sono moltissime). Backup: copia `/var/lib/instaq` (database + foto).

@@ -1,8 +1,9 @@
 const $app = document.getElementById('app');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const STATUS = { draft: 'Bozza', review: 'Da rivedere', ready: 'Pronto', published: 'Pubblicato' };
-const LIMITS = { X: 280, LinkedIn: 3000, Instagram: 2200, Facebook: 63206 };
-let state = { posts: [], current: null, dirty: false, history: null };
+const X_LIMIT = 280;
+let state = { posts: [], current: null, history: null };
+let saveTimer = null;
 const getName = () => { try { return localStorage.getItem('instaq-name') || ''; } catch { return ''; } };
 const setName = (n) => { try { localStorage.setItem('instaq-name', n); } catch {} };
 
@@ -11,8 +12,7 @@ async function api(url, opts = {}) {
   if (opts.body && !(opts.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json'; opts = { ...opts, body: JSON.stringify(opts.body) };
   }
-  opts = { ...opts, headers };
-  const r = await fetch('/api' + url, opts);
+  const r = await fetch('/api' + url, { ...opts, headers });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || 'Errore ' + r.status);
   return data;
@@ -20,171 +20,200 @@ async function api(url, opts = {}) {
 function toast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
-  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2200);
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2600);
 }
 const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message); } };
+const imgUrl = (id) => `/api/images/${id}`;
+const hashId = () => Number((location.hash.match(/^#\/p\/(\d+)/) || [])[1]) || null;
+const postLink = (id) => `${location.origin}${location.pathname}#/p/${id}`;
+const setPost = (np) => { state.posts = state.posts.map((x) => (x.id === np.id ? np : x)); if (state.current?.id === np.id) state.current = np; };
 
-// ---------- data ----------
+// ---------- dati ----------
 async function loadPosts(keepId) {
   state.posts = await api('/posts');
   const id = keepId ?? state.current?.id;
   state.current = state.posts.find((p) => p.id === id) || null;
 }
-const hashId = () => Number((location.hash.match(/^#\/p\/(\d+)/) || [])[1]) || null;
-const postLink = (id) => `${location.origin}${location.pathname}#/p/${id}`;
 function select(id) {
-  state.current = state.posts.find((x) => x.id === id) || null; state.dirty = false; state.history = null;
+  state.current = state.posts.find((x) => x.id === id) || null; state.history = null;
   const h = id ? `#/p/${id}` : '';
   if (location.hash !== h) history.replaceState(null, '', location.pathname + h);
 }
-async function boot() {
-  await loadPosts(hashId());
-  render();
-}
-window.addEventListener('hashchange', () => { if (hashId() !== state.current?.id) { select(hashId()); render(); } });
-const imgUrl = (id) => `/api/images/${id}`;
 
-// ---------- render ----------
+// Salvataggio automatico di titolo e testo (nessun pulsante «Salva»)
+function setSaveState(txt) { const el = document.getElementById('savestate'); if (el) el.textContent = txt; }
+async function flush() {
+  if (!saveTimer) return;
+  clearTimeout(saveTimer); saveTimer = null;
+  const t = document.getElementById('title'), x = document.getElementById('text'), p = state.current;
+  if (!t || !p) return;
+  setSaveState('Salvataggio…');
+  try { setPost(await api('/posts/' + p.id, { method: 'PUT', body: { title: t.value, text: x.value } })); renderList(); setSaveState('Salvato ✓'); }
+  catch (e) { setSaveState('Errore: non salvato'); toast(e.message); }
+}
+function scheduleSave() { setSaveState('…'); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 800); }
+window.addEventListener('beforeunload', (e) => { if (saveTimer) { flush(); e.preventDefault(); } });
+
+// ---------- interfaccia ----------
+function listHtml() {
+  const p = state.current;
+  return state.posts.map((x) => `<div class="post-item ${p?.id === x.id ? 'active' : ''}" data-id="${x.id}">
+    ${x.coverId ? `<img src="${imgUrl(x.coverId)}" alt="">` : '<div class="ph"></div>'}
+    <div class="info"><div class="t">${esc(x.title) || 'Senza titolo'}</div>
+    <span class="badge ${x.status}">${STATUS[x.status]}</span></div></div>`).join('') || '<div class="mute">Nessun post. Creane uno!</div>';
+}
+function renderList() {
+  const el = document.getElementById('list'); if (!el) return;
+  el.innerHTML = listHtml(); bindList();
+}
+function bindList() {
+  document.querySelectorAll('.post-item').forEach((el) => el.onclick = guard(async () => {
+    await flush(); select(Number(el.dataset.id)); render();
+  }));
+}
+
 function render() {
-  const { posts, current: p } = state;
+  const p = state.current;
   $app.innerHTML = `<div class="layout"><aside>
     <h1>InstAQ</h1>
-    <input id="name" placeholder="Il tuo nome (per la cronologia)" value="${esc(getName())}">
     <button class="primary" id="new">+ Nuovo post</button>
-    ${posts.map((x) => `<div class="post-item ${p?.id === x.id ? 'active' : ''}" data-id="${x.id}">
-      ${x.coverId ? `<img src="${imgUrl(x.coverId)}" alt="">` : '<div class="ph"></div>'}
-      <div style="min-width:0"><div class="t">${esc(x.title) || 'Senza titolo'}</div>
-      <div class="row"><span class="badge ${x.status}">${STATUS[x.status]}</span></div></div></div>`).join('')
-      || '<div class="mute">Nessun post. Creane uno!</div>'}
-  </aside><main>${p ? editor(p) : '<div class="mute">Seleziona o crea un post.</div>'}</main></div>`;
+    <div id="list" class="list">${listHtml()}</div>
+    <label class="me">Firmi come <input id="name" placeholder="il tuo nome" value="${esc(getName())}"></label>
+  </aside><main>${p ? editor(p) : '<div class="empty">Seleziona un post a sinistra<br>o creane uno nuovo.</div>'}</main></div>`;
+  bindList();
   document.getElementById('name').onchange = (e) => setName(e.target.value.trim());
   document.getElementById('new').onclick = guard(async () => {
+    await flush();
     const np = await api('/posts', { method: 'POST', body: { title: 'Nuovo post' } });
     await loadPosts(np.id); select(np.id); render();
-  });
-  document.querySelectorAll('.post-item').forEach((el) => el.onclick = () => {
-    if (state.dirty && !confirm('Ci sono modifiche non salvate. Cambiare post?')) return;
-    select(Number(el.dataset.id)); render();
+    const t = document.getElementById('title'); t.focus(); t.select();
   });
   if (p) bindEditor(p);
 }
 
 function editor(p) {
+  const photos = p.images.map((im, i) => `
+    <div class="photo ${i === 0 ? 'first' : ''}" draggable="true" data-id="${im.id}">
+      <img src="${imgUrl(im.id)}" alt="${esc(im.original)}" draggable="false">
+      ${i === 0 ? '<span class="tag">Principale</span>' : ''}
+      <div class="ctl"><button data-act="left" title="Sposta prima">◀</button><button data-act="right" title="Sposta dopo">▶</button><button data-act="del" title="Rimuovi">✕</button></div>
+    </div>`).join('');
   return `
-  <div class="card">
-    <div class="row spread"><h2>Contenuto</h2>
-      <span class="row"><button id="link">🔗 Copia link</button><select id="status" style="width:auto">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></span></div>
-    <input id="title" placeholder="Titolo interno" value="${esc(p.title)}">
-    <textarea id="text" placeholder="Testo del post…">${esc(p.text)}</textarea>
-    <div class="row" id="counts"></div>
-    <div class="row"><button class="primary" id="save">Salva</button><span class="mute" id="saved">Ultima modifica: ${esc(p.updatedAt)}</span></div>
-  </div>
-  <div class="card">
-    <div class="row spread"><h2>Foto</h2><span class="mute">Trascina per riordinare · ★ = foto principale (esce per prima)</span></div>
-    <div class="photos" id="photos">${p.images.map((im, i) => `
-      <div class="photo ${im.id === p.coverId ? 'cover' : ''}" draggable="true" data-id="${im.id}">
-        <span class="n">${i + 1}</span><button class="star" data-act="cover" title="Imposta principale">★</button>
-        <img src="${imgUrl(im.id)}" alt="${esc(im.original)}" draggable="false">
-        <div class="bar"><span><button data-act="left">←</button> <button data-act="right">→</button></span><button class="danger" data-act="del">✕</button></div>
-      </div>`).join('')}</div>
-    <label class="drop" id="drop">Trascina qui le foto o clicca per sceglierle
-      <input type="file" id="file" accept="image/*" multiple hidden></label>
-  </div>
-  <div class="card"><h2>Condividi sui social</h2>
-    <div class="mute">Per condividere il post con i colleghi usa «Copia link» in alto.</div>
-    <div class="share">
-      <button class="primary" data-s="native">📤 Condividi (testo + foto)</button>
-      <button data-s="instagram">Instagram</button><button data-s="x">X</button>
-      <button data-s="linkedin">LinkedIn</button><button data-s="facebook">Facebook</button>
-      <button data-s="whatsapp">WhatsApp</button><button data-s="telegram">Telegram</button>
-      <button data-s="copy">Copia testo</button><button data-s="download">Scarica foto</button>
+  <div class="head">
+    <input id="title" class="title" placeholder="Titolo del post" value="${esc(p.title)}">
+    <div class="actions">
+      <select id="status" title="Stato">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <button id="link">🔗 Copia link</button>
+      <div class="menu-wrap"><button class="primary" data-menu="shareMenu">Condividi ▾</button>
+        <div class="menu" id="shareMenu">
+          <button data-s="native">📱 Condividi con le foto<small>dal cellulare, nell'app che scegli</small></button>
+          <button data-s="instagram">Instagram<small>copia testo + scarica foto</small></button>
+          <button data-s="facebook">Facebook<small>copia testo, apre Facebook</small></button>
+          <button data-s="linkedin">LinkedIn<small>testo precompilato</small></button>
+          <button data-s="x">X<small>testo precompilato</small></button>
+          <button data-s="whatsapp">WhatsApp<small>testo precompilato</small></button>
+          <button data-s="telegram">Telegram<small>testo precompilato</small></button>
+          <hr><button data-s="copy">Copia solo il testo</button><button data-s="download">Scarica solo le foto</button>
+        </div></div>
+      <div class="menu-wrap"><button data-menu="moreMenu" title="Altro">⋯</button>
+        <div class="menu" id="moreMenu"><button id="hist">Cronologia modifiche</button><button class="danger" id="delpost">Elimina post</button></div></div>
     </div>
   </div>
-  <div class="card"><div class="row spread"><h2>Cronologia</h2><button id="hist">${state.history ? 'Nascondi' : 'Mostra'}</button></div>
-    ${state.history ? `<div class="hist">${state.history.map((r) => `<div><span>${esc(r.summary)} <span class="mute">— ${esc(r.author)}, ${esc(r.created_at)}</span></span>
-      <button data-rev="${r.id}">Ripristina testo</button></div>`).join('')}</div>` : ''}</div>
-  <button class="danger" id="delpost">Elimina post</button>`;
+
+  <section>
+    <div class="label"><h2>Foto</h2><span class="mute">La prima è quella principale · trascina per cambiare ordine</span></div>
+    <div class="photos" id="photos">${photos}
+      <label class="photo add" id="drop"><span class="plus">+</span>Aggiungi foto<input type="file" id="file" accept="image/*" multiple hidden></label>
+    </div>
+  </section>
+
+  <section>
+    <div class="label"><h2>Testo</h2><span class="mute" id="savestate">Salvato ✓</span></div>
+    <textarea id="text" placeholder="Scrivi il testo del post…">${esc(p.text)}</textarea>
+    <div class="mute" id="count"></div>
+  </section>
+  ${state.history ? historyHtml(p) : ''}`;
+}
+
+function historyHtml(p) {
+  return `<section><div class="label"><h2>Cronologia</h2><button id="histclose">Chiudi</button></div>
+    <div class="hist">${state.history.map((r) => {
+      const changed = r.snapshot.text !== p.text || r.snapshot.title !== p.title;
+      return `<div><span>${esc(r.summary)} <span class="mute">— ${esc(r.author)}, ${esc(r.created_at)}</span></span>
+      ${changed ? `<button data-rev="${r.id}">Torna a questo testo</button>` : ''}</div>`;
+    }).join('')}</div></section>`;
 }
 
 function bindEditor(p) {
   const $ = (id) => document.getElementById(id);
-  const upd = async (body) => {
-    const np = await api('/posts/' + p.id, { method: 'PUT', body });
-    state.posts = state.posts.map((x) => (x.id === np.id ? np : x)); state.current = np; return np;
+  const refresh = guard(async (body) => { setPost(await api('/posts/' + p.id, { method: 'PUT', body })); render(); });
+  const counter = () => {
+    const n = $('text').value.length;
+    $('count').innerHTML = `${n} caratteri` + (n > X_LIMIT ? ` · <b class="over">troppo lungo per X (max ${X_LIMIT})</b>` : '');
   };
-  const counts = () => {
-    const len = $('text').value.length;
-    $('counts').innerHTML = Object.entries(LIMITS).map(([k, m]) => `<span class="count ${len > m ? 'over' : ''}">${k}: ${len}/${m}</span>`).join('');
-  };
-  counts();
-  const markDirty = () => { state.dirty = true; $('saved').textContent = 'Modifiche non salvate'; counts(); };
-  $('title').oninput = markDirty; $('text').oninput = markDirty;
-  const save = guard(async () => {
-    await upd({ title: $('title').value, text: $('text').value }); state.dirty = false; toast('Salvato'); render();
-  });
-  $('save').onclick = save;
-  document.addEventListener('keydown', function h(e) {
-    if (!document.body.contains($('save'))) return document.removeEventListener('keydown', h);
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); }
-  });
-  $('status').onchange = guard(async () => { await upd({ status: $('status').value }); await loadPosts(); render(); });
+  counter();
+  $('title').oninput = scheduleSave;
+  $('text').oninput = () => { counter(); scheduleSave(); };
+  $('status').onchange = guard(async () => { await flush(); await refresh({ status: $('status').value }); await loadPosts(); renderList(); });
+  $('link').onclick = guard(async () => { await copy(postLink(p.id)); toast('Link copiato: incollalo ai colleghi'); });
 
   // foto
   const upload = guard(async (files) => {
+    await flush(); toast('Caricamento…');
     const fd = new FormData(); [...files].forEach((f) => fd.append('images', f));
-    const np = await api(`/posts/${p.id}/images`, { method: 'POST', body: fd });
-    state.posts = state.posts.map((x) => (x.id === np.id ? np : x)); state.current = np; render();
+    setPost(await api(`/posts/${p.id}/images`, { method: 'POST', body: fd })); render();
   });
   $('file').onchange = (e) => upload(e.target.files);
-  const drop = $('drop');
-  drop.ondragover = (e) => { e.preventDefault(); if (e.dataTransfer.types.includes('Files')) drop.classList.add('over'); };
-  drop.ondragleave = () => drop.classList.remove('over');
-  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files.length) upload(e.dataTransfer.files); };
+  const grid = $('photos');
+  grid.ondragover = (e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); grid.classList.add('over'); } };
+  grid.ondragleave = () => grid.classList.remove('over');
+  grid.ondrop = (e) => { if (e.dataTransfer.files.length) { e.preventDefault(); grid.classList.remove('over'); upload(e.dataTransfer.files); } };
   const ids = () => p.images.map((i) => i.id);
-  const reorder = guard(async (order) => { await upd({ order }); render(); });
+  // la prima foto è sempre la principale
+  const reorder = guard(async (order) => { await flush(); await refresh({ order, coverId: order[0] }); });
   let dragId = null;
-  document.querySelectorAll('.photo').forEach((el) => {
+  document.querySelectorAll('.photo[data-id]').forEach((el) => {
     const id = Number(el.dataset.id);
     el.ondragstart = () => { dragId = id; el.classList.add('drag'); };
     el.ondragend = () => el.classList.remove('drag');
-    el.ondragover = (e) => e.preventDefault();
+    el.ondragover = (e) => { if (dragId != null) e.preventDefault(); };
     el.ondrop = (e) => {
-      e.preventDefault(); if (dragId == null || dragId === id) return;
-      const o = ids().filter((x) => x !== dragId); o.splice(o.indexOf(id) + (ids().indexOf(dragId) < ids().indexOf(id) ? 1 : 0), 0, dragId);
-      reorder(o);
+      if (dragId == null || dragId === id) return; e.preventDefault();
+      const o = ids(), from = o.indexOf(dragId), to = o.indexOf(id);
+      o.splice(from, 1); o.splice(to, 0, dragId); dragId = null; reorder(o);
     };
     el.querySelectorAll('button').forEach((b) => b.onclick = guard(async () => {
       const a = b.dataset.act, o = ids(), i = o.indexOf(id);
-      if (a === 'cover') { await upd({ coverId: id }); render(); }
-      else if (a === 'del') {
+      if (a === 'del') {
         if (!confirm('Rimuovere la foto?')) return;
-        const np = await api(`/posts/${p.id}/images/${id}`, { method: 'DELETE' });
-        state.posts = state.posts.map((x) => (x.id === np.id ? np : x)); state.current = np; render();
-      } else {
-        const j = a === 'left' ? i - 1 : i + 1; if (j < 0 || j >= o.length) return;
-        [o[i], o[j]] = [o[j], o[i]]; reorder(o);
+        await flush(); setPost(await api(`/posts/${p.id}/images/${id}`, { method: 'DELETE' })); return render();
       }
+      const j = a === 'left' ? i - 1 : i + 1; if (j < 0 || j >= o.length) return;
+      [o[i], o[j]] = [o[j], o[i]]; reorder(o);
     }));
   });
 
-  $('link').onclick = guard(async () => { await copy(postLink(p.id)); toast('Link copiato'); });
-
-  // cronologia
-  $('hist').onclick = guard(async () => {
-    state.history = state.history ? null : await api(`/posts/${p.id}/revisions`); render();
+  // menu
+  document.querySelectorAll('[data-menu]').forEach((b) => b.onclick = (e) => {
+    e.stopPropagation(); const m = $(b.dataset.menu), open = m.classList.contains('open');
+    document.querySelectorAll('.menu').forEach((x) => x.classList.remove('open')); if (!open) m.classList.add('open');
   });
-  document.querySelectorAll('[data-rev]').forEach((b) => b.onclick = guard(async () => {
-    const np = await api(`/posts/${p.id}/revisions/${b.dataset.rev}/restore`, { method: 'POST' });
-    state.posts = state.posts.map((x) => (x.id === np.id ? np : x)); state.current = np; state.history = null; state.dirty = false; render();
-  }));
-  if ($('delpost')) $('delpost').onclick = guard(async () => {
+  $('hist').onclick = guard(async () => { await flush(); state.history = await api(`/posts/${p.id}/revisions`); render(); });
+  $('delpost').onclick = guard(async () => {
     if (!confirm('Eliminare definitivamente il post e le sue foto?')) return;
+    clearTimeout(saveTimer); saveTimer = null;
     await api('/posts/' + p.id, { method: 'DELETE' }); await loadPosts(); select(null); render();
   });
-
-  // condivisione: usa sempre la versione correntemente in editor
-  document.querySelectorAll('[data-s]').forEach((b) => b.onclick = guard(() => share(b.dataset.s, p, $('text').value)));
+  if ($('histclose')) $('histclose').onclick = () => { state.history = null; render(); };
+  document.querySelectorAll('[data-rev]').forEach((b) => b.onclick = guard(async () => {
+    setPost(await api(`/posts/${p.id}/revisions/${b.dataset.rev}/restore`, { method: 'POST' })); state.history = null; render();
+  }));
+  document.querySelectorAll('[data-s]').forEach((b) => b.onclick = guard(async () => { await flush(); await share(b.dataset.s, state.current, $('text').value); }));
 }
+document.addEventListener('click', () => document.querySelectorAll('.menu.open').forEach((m) => m.classList.remove('open')));
+window.addEventListener('hashchange', guard(async () => { if (hashId() !== state.current?.id) { await flush(); select(hashId()); render(); } }));
+
+async function boot() { await loadPosts(hashId()); render(); }
 
 // ---------- condivisione ----------
 function orderedImages(p) { // la principale per prima, poi le altre nell'ordine scelto

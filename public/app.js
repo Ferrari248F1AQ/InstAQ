@@ -87,12 +87,12 @@ function bindList() {
 
 function render() {
   const p = state.current;
-  $app.innerHTML = `<div class="layout"><aside>
-    <div class="brand"><img src="/img/instaq.svg" alt="" width="32" height="32"><h1>InstAQ</h1></div>
+  $app.innerHTML = `<div class="layout"><header class="top">
+    <picture class="lockup"><source media="(prefers-color-scheme: dark)" srcset="/img/lockup-neg.svg"><img src="/img/lockup.svg" alt="Università degli Studi dell'Aquila · DIIIE, Dipartimento di Ingegneria Industriale e dell'Informazione e di Economia"></picture>
+    <div class="brand"><img src="/img/instaq.svg" alt="" width="36" height="36"><h1>InstAQ</h1></div>
+  </header><aside>
     <button class="primary" id="new">+ Nuovo post</button>
     <div id="list" class="list">${listHtml()}</div>
-    <div class="inst">${[['univaq', "Università degli Studi dell'Aquila"], ['diiie', 'DIIIE – Dipartimento di Ingegneria Industriale e dell\'Informazione e di Economia']].map(([k, alt]) =>
-      `<picture><source media="(prefers-color-scheme: dark)" srcset="/img/${k}-neg.svg"><img src="/img/${k}.svg" alt="${alt}"></picture>`).join('')}</div>
     <button class="me" id="name" title="Il tuo nome compare nella cronologia delle modifiche">👤 ${getName() ? esc(getName()) : 'Imposta il tuo nome'}</button>
   </aside><main>${p ? editor(p) : '<div class="empty">Seleziona un post a sinistra<br>o creane uno nuovo.</div>'}</main></div>`;
   bindList();
@@ -146,19 +146,19 @@ function editor(p) {
 
 const qrSvg = (url) => { const q = qrcode(0, 'M'); q.addData(url); q.make(); return q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }); };
 const NETS = [
-  ['instagram', 'Instagram', 'copia il testo e scarica le foto', 'scegli Instagram nel menu del telefono'],
-  ['facebook', 'Facebook', 'copia il testo e scarica le foto', 'scegli Facebook nel menu del telefono'],
-  ['linkedin', 'LinkedIn', 'testo già scritto; foto da aggiungere', 'testo già scritto; foto da aggiungere'],
+  ['instagram', 'Instagram', 'copia il testo e scarica le foto', 'foto in ordine · testo copiato da incollare'],
+  ['facebook', 'Facebook', 'copia il testo e scarica le foto', 'foto in ordine · testo copiato da incollare'],
+  ['linkedin', 'LinkedIn', 'copia il testo e scarica le foto', 'foto in ordine · testo copiato da incollare'],
   ['x', 'X', 'testo già scritto', 'testo già scritto'],
   ['whatsapp', 'WhatsApp', 'testo già scritto', 'testo già scritto'],
   ['telegram', 'Telegram', 'testo già scritto', 'testo già scritto'],
 ];
 function publishHtml(p) {
   const top = canShareFiles
-    ? `<button class="primary big" data-s="native">📱 Condividi con un'altra app<small>Consigliato · passa testo e foto già in ordine all'app che scegli (Instagram, WhatsApp…)</small></button>`
+    ? `<button class="primary big" data-s="native">📱 Condividi con un'altra app<small>Consigliato · manda le foto già in ordine all'app che scegli; il testo viene copiato per incollarlo</small></button>`
     : `<div class="reco"><div class="qr">${qrSvg(postLink(p.id))}</div><div>
         <b>Consigliato: continua dal telefono</b>
-        <p>Inquadra il codice con la fotocamera: si apre questo post sul telefono. Lì, con «Condividi con un'altra app», mandi testo e foto già in ordine a Instagram o a qualsiasi altra app, senza scaricare nulla.</p></div></div>`;
+        <p>Inquadra il codice con la fotocamera: si apre questo post sul telefono. Lì, con «Condividi con un'altra app», mandi le foto già in ordine a Instagram o a qualsiasi altra app senza scaricare nulla (il testo viene copiato, lo incolli con un tocco).</p></div></div>`;
   return `<section>
     <div class="label"><h2>Pubblica sui social</h2><span class="mute">Usa il testo e le foto di questa pagina</span></div>
     ${top}
@@ -169,34 +169,41 @@ function publishHtml(p) {
   </section>`;
 }
 
-// Guida passo-passo (desktop): testo copiato e foto scaricate, poi i passi sul social
+// Guida passo-passo. Telefono: menu di condivisione di sistema (le app ricevono le foto, quasi mai il testo).
+// Computer: testo copiato, foto scaricate, poi si apre il sito del social.
+const PASTE_PHONE = 'Il testo non arriva da solo: nel campo della didascalia <b>tieni premuto</b> e scegli <b>Incolla</b>.';
+const PASTE_PC = 'Incolla il testo (<b>Ctrl+V</b>, su Mac <b>⌘V</b>).';
+const ORDER = (n) => `<b>nell'ordine foto-01, foto-02…</b> (la 01 è la principale)`;
 const GUIDES = {
-  instagram: { name: 'Instagram', url: 'https://www.instagram.com/', steps: (n) => [
-    'Su Instagram clicca <b>Crea</b> (+) → <b>Post</b>.',
-    n ? `Seleziona le ${n} foto dalla cartella Download <b>nell'ordine foto-01, foto-02…</b> (la 01 è la principale).` : 'Scegli le foto.',
-    'Nella didascalia incolla il testo (<b>Ctrl+V</b>, su Mac <b>⌘V</b>) e pubblica.'] },
-  facebook: { name: 'Facebook', url: 'https://www.facebook.com/', steps: (n) => [
-    'Su Facebook clicca «A cosa stai pensando?».',
-    n ? `Incolla il testo (<b>Ctrl+V</b>, su Mac <b>⌘V</b>), poi aggiungi le ${n} foto <b>nell'ordine foto-01, foto-02…</b>` : 'Incolla il testo (<b>Ctrl+V</b>, su Mac <b>⌘V</b>).',
-    'Pubblica.'] },
-  linkedin: { name: 'LinkedIn', url: null, steps: (n) => [
-    'Si apre LinkedIn con il testo già scritto.',
-    n ? `Clicca l'icona immagine e aggiungi le ${n} foto <b>nell'ordine foto-01, foto-02…</b>` : 'Controlla il testo.',
-    'Pubblica.'] },
+  instagram: { name: 'Instagram', url: 'https://www.instagram.com/',
+    pc: (n) => ['Su Instagram clicca <b>Crea</b> (+) → <b>Post</b>.', n ? `Seleziona le ${n} foto dalla cartella Download ${ORDER(n)}.` : 'Scegli le foto.', PASTE_PC.replace('Incolla', 'Nella didascalia incolla') + ' Poi pubblica.'],
+    phone: () => ['Nel menu che si apre scegli <b>Instagram</b> → <b>Post</b>.', PASTE_PHONE, 'Controlla l\'ordine delle foto e pubblica.'] },
+  facebook: { name: 'Facebook', url: 'https://www.facebook.com/',
+    pc: (n) => ['Su Facebook clicca «A cosa stai pensando?».', PASTE_PC, n ? `Aggiungi le ${n} foto ${ORDER(n)}.` : 'Pubblica.'],
+    phone: () => ['Nel menu che si apre scegli <b>Facebook</b>.', PASTE_PHONE, 'Controlla l\'ordine delle foto e pubblica.'] },
+  linkedin: { name: 'LinkedIn', url: 'https://www.linkedin.com/feed/',
+    pc: (n) => ['In LinkedIn clicca <b>Inizia un post</b>.', PASTE_PC, n ? `Clicca l'icona immagine e aggiungi le ${n} foto ${ORDER(n)}. Poi pubblica.` : 'Pubblica.'],
+    phone: () => ['Nel menu che si apre scegli <b>LinkedIn</b>.', PASTE_PHONE, 'Controlla l\'ordine delle foto e pubblica.'] },
+  native: { name: 'un\'altra app', url: null,
+    pc: () => [], phone: () => ['Nel menu che si apre scegli l\'app.', 'Instagram e altre app <b>non ricevono il testo</b>: se manca, tieni premuto nel campo della didascalia e scegli <b>Incolla</b>.'] },
 };
-function showGuide(kind, p, text, nPhotos) {
-  const g = GUIDES[kind];
-  const url = g.url || ('https://www.linkedin.com/feed/?shareActive=true&text=' + encodeURIComponent(text));
+function showGuide(kind, text, files, phone, copied) {
+  const g = GUIDES[kind], n = files.length;
   const el = document.createElement('div'); el.className = 'modal';
-  el.innerHTML = `<div class="dialog"><h2>Pubblica su ${g.name}</h2>
-    <div class="done"><span>✓ Testo copiato</span>${nPhotos ? `<span>✓ ${nPhotos} foto scaricate</span>` : ''}</div>
-    <ol>${g.steps(nPhotos).map((x) => `<li>${x}</li>`).join('')}</ol>
-    <div class="row-end"><button id="gclose">Chiudi</button><button class="primary" id="gopen">Apri ${g.name} ↗</button></div></div>`;
+  el.innerHTML = `<div class="dialog"><h2>${phone ? 'Condividi su' : 'Pubblica su'} ${g.name}</h2>
+    <div class="done">${copied ? '<span>✓ Testo copiato</span>' : '<span class="warn">⚠ Copia non riuscita: copia il testo qui sotto</span>'}${n ? `<span>✓ ${n} foto ${phone ? 'pronte' : 'scaricate'}</span>` : ''}</div>
+    ${copied ? '' : `<textarea readonly class="copybox">${esc(text)}</textarea>`}
+    <ol>${(phone ? g.phone(n) : g.pc(n)).map((x) => `<li>${x}</li>`).join('')}</ol>
+    <div class="row-end"><button id="gclose">Chiudi</button><button class="primary" id="gopen">${phone ? "Scegli l'app →" : `Apri ${g.name} ↗`}</button></div></div>`;
   document.body.appendChild(el);
   const close = () => el.remove();
   el.onclick = (e) => { if (e.target === el) close(); };
   el.querySelector('#gclose').onclick = close;
-  el.querySelector('#gopen').onclick = () => { open(url); close(); };
+  el.querySelector('#gopen').onclick = async () => {
+    if (!phone) { open(g.url); return close(); }
+    try { await navigator.share(n ? { files, text } : { text }); close(); }
+    catch (err) { if (err.name !== 'AbortError') toast('Condivisione non riuscita: ' + err.message); }
+  };
 }
 
 function historyHtml(p) {
@@ -297,7 +304,13 @@ async function imageFiles(p) {
     return new File([blob], `${slug(p.title)}_foto-${n}-di-${tot}${i === 0 ? '_PRINCIPALE' : ''}${ext}`, { type: blob.type });
   }));
 }
-async function copy(text) { await navigator.clipboard.writeText(text); }
+async function copy(text) { // true se copiato (su http senza HTTPS gli appunti possono non essere disponibili)
+  try { await navigator.clipboard.writeText(text); return true; } catch {}
+  try {
+    const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(t); t.select(); const ok = document.execCommand('copy'); t.remove(); return ok;
+  } catch { return false; }
+}
 function download(files) {
   files.forEach((f, i) => setTimeout(() => {
     const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; a.click();
@@ -309,22 +322,16 @@ const open = (u) => window.open(u, '_blank', 'noopener');
 async function share(kind, p, text) {
   const e = encodeURIComponent(text);
   switch (kind) {
-    case 'copy': await copy(text); return toast('Testo copiato');
+    case 'copy': return toast((await copy(text)) ? 'Testo copiato' : 'Copia non riuscita: seleziona il testo e copialo a mano');
     case 'download': { const f = await imageFiles(p), n = f.length; download(f); return toast(`${n} foto scaricate: caricale in ordine numerico (foto-01, 02…), la prima è la principale`); }
-    case 'native': {
-      const files = await imageFiles(p);
-      const data = { text, files };
-      if (navigator.canShare?.(data)) { try { await navigator.share(data); } catch (err) { if (err.name !== 'AbortError') throw err; } return; }
-      await copy(text); download(files);
-      return toast('Condivisione nativa non supportata: testo copiato e foto scaricate');
-    }
-    // Nessun social accetta foto via link: su telefono si usa il menu di sistema, su desktop copia + scarica + guida.
-    case 'instagram': case 'facebook': case 'linkedin': {
-      if (canShareFiles && kind !== 'linkedin') return share('native', p, text);
-      await copy(text);
+    // Nessun social accetta il testo insieme alle foto via link: copia + guida (telefono: menu di sistema, computer: download)
+    case 'native': case 'instagram': case 'facebook': case 'linkedin': {
+      const phone = canShareFiles;
+      if (kind === 'native' && !phone) return toast('Apri questo post dal telefono per condividere con le altre app');
+      const copied = await copy(text);
       const files = p.images.length ? await imageFiles(p) : [];
-      if (files.length) download(files);
-      return showGuide(kind, p, text, files.length);
+      if (!phone && files.length) download(files);
+      return showGuide(kind, text, files, phone, copied);
     }
     case 'x': return open('https://twitter.com/intent/tweet?text=' + e);
     case 'whatsapp': return open('https://wa.me/?text=' + e);

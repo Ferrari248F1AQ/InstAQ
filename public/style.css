@@ -11,8 +11,8 @@ select,input,textarea{background:var(--card);border:1px solid var(--line);border
 h1,h2{margin:0}h1{font-size:20px}h2{font-size:15px}
 .mute{color:var(--mute);font-size:13px}.over{color:var(--danger)}
 
-.layout{display:grid;grid-template-columns:270px 1fr;min-height:100vh}
-aside{background:var(--card);border-right:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:12px;position:sticky;top:0;height:100vh}
+.layout{display:grid;grid-template-columns:270px 1fr;grid-template-rows:auto 1fr;min-height:100vh}
+aside{background:var(--card);border-right:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:12px}
 .list{display:flex;flex-direction:column;gap:6px;overflow:auto;flex:1}
 .post-item{display:flex;gap:10px;padding:8px;border-radius:10px;cursor:pointer;border:1px solid transparent}
 .post-item:hover{background:var(--bg)}
@@ -97,7 +97,13 @@ button.big small{font-size:13px;font-weight:400;opacity:.9}
 .row-end{display:flex;justify-content:flex-end;gap:8px}
 @media(max-width:760px){.reco{flex-direction:column;align-items:flex-start}}
 
-.brand{display:flex;align-items:center;gap:10px}
-.inst{display:flex;flex-direction:column;gap:16px;padding:14px 4px 6px;border-top:1px solid var(--line)}
-.inst img{display:block;width:100%;max-width:200px;height:auto}
-@media(max-width:760px){.inst{flex-direction:row;flex-wrap:wrap;gap:14px}.inst picture{flex:1 1 150px}}
+/* Intestazione istituzionale (Manuale di immagine coordinata UnivAQ):
+   stemma UnivAQ >= 4 cm (~151 px), UnivAQ e DIIIE affiancati alla stessa altezza e con lo spazio del manuale (file unico),
+   area di rispetto = 0,28 x altezza stemma su ogni lato (22,8 px su una larghezza totale di 423 px = 5,39%), colori e proporzioni non modificati. */
+.top{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;background:var(--card);border-bottom:1px solid var(--line)}
+.lockup{--w:min(100vw,423px);display:block;width:var(--w);padding:calc(var(--w)*.0539);box-sizing:border-box}
+.lockup img{display:block;width:100%;height:auto}
+.brand{display:flex;align-items:center;gap:10px;align-self:stretch;padding:0 24px;border-left:1px solid var(--line)}
+.copybox{min-height:90px;font-size:14px}
+.warn{color:var(--danger)}
+@media(max-width:760px){.brand{border-left:0;border-top:1px solid var(--line);width:100%;padding:12px 16px}}

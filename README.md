@@ -20,10 +20,15 @@ npm test
 Il QR usa l'indirizzo con cui apri l'app: per funzionare dal telefono apri l'app dall'hostname Cloudflare, non da `localhost`. Libreria QR inclusa in `public/vendor/qrcode.js` (qrcode-generator, MIT).
 
 ## Loghi
-I loghi UnivAQ e DIIIE (`public/img/`, SVG vettoriali) sono estratti dal Manuale di immagine coordinata UnivAQ (feb. 2025, pp. 65-68): versione a colori sul tema chiaro, versione negativa (bianca) sul tema scuro. Il logo `instaq.svg` è l'icona dell'app, usata anche come favicon. Per l'uso dei loghi valgono le regole del manuale (area di rispetto, nessuna modifica); le richieste esterne vanno all'Ufficio Comunicazione.
+Intestazione con i loghi UnivAQ e DIIIE, estratti come SVG vettoriali dal Manuale di immagine coordinata UnivAQ (feb. 2025, pp. 65-68) in un **unico file** (`public/img/lockup.svg`, positivo; `lockup-neg.svg`, negativo bianco per il tema scuro). Vincoli del manuale rispettati:
+- logo dipartimentale **affiancato** a quello istituzionale (prima UnivAQ, poi DIIIE), stessa altezza e spaziatura originale (pp. 47-48);
+- stemma UnivAQ largo **4 cm** (~151 px, minimo del formato B, p. 17-18; su telefoni stretti scende a ~3,7 cm per non uscire dallo schermo);
+- **area di rispetto** = 0,28 × altezza dello stemma su ogni lato (pp. 15-16), nessun elemento al suo interno;
+- colori e proporzioni invariati; positivo su fondo chiaro, negativo su fondo scuro (p. 67).
+`instaq.svg` è l'icona dell'app (anche favicon). Le richieste esterne di uso del logo vanno all'Ufficio Comunicazione (p. 3 del manuale).
 
 ## Limiti noti delle piattaforme
-X, WhatsApp, Telegram e LinkedIn accettano il testo via link; **nessun social accetta foto via link**. Per Instagram/Facebook/LinkedIn il tasto copia il testo, scarica le foto già in ordine e apre il sito. Su smartphone il tasto «Condividi» passa testo e foto direttamente all'app scelta. La pubblicazione automatica via API ufficiali (Meta, LinkedIn, X) richiede app e approvazioni dei singoli social: è un'estensione possibile.
+X, WhatsApp, Telegram e LinkedIn accettano il testo via link; **nessun social accetta foto via link**. Per Instagram/Facebook/LinkedIn il tasto copia il testo, scarica le foto già in ordine e apre il sito con una guida passo-passo. Su smartphone il tasto «Condividi» passa testo e foto direttamente all'app scelta. La pubblicazione automatica via API ufficiali (Meta, LinkedIn, X) richiede app e approvazioni dei singoli social: è un'estensione possibile.
 
 ## Deploy su Raspberry Pi + Cloudflare Tunnel
 Porta di default **47213** (cambiabile con `PORT`), in ascolto su `0.0.0.0` (`HOST`). `deploy/install.sh` controlla le porte in ascolto e, se la 47213 è occupata, sceglie la prima libera successiva (oppure `sudo PORT=xxxx ./deploy/install.sh`; se la porta data è occupata si ferma). Negli aggiornamenti rieseguendo lo script si riusa la porta già configurata e il servizio viene riavviato.

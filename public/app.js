@@ -219,11 +219,16 @@ async function boot() { await loadPosts(hashId()); render(); }
 function orderedImages(p) { // la principale per prima, poi le altre nell'ordine scelto
   return [...p.images].sort((a, b) => (b.id === p.coverId) - (a.id === p.coverId));
 }
+const slug = (t) => (t || 'post').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'post';
+// Nomi parlanti: ordinati alfabeticamente coincidono con l'ordine di pubblicazione
+// es. lancio-collezione_foto-1-di-4_PRINCIPALE.jpg, lancio-collezione_foto-2-di-4.jpg
 async function imageFiles(p) {
-  return Promise.all(orderedImages(p).map(async (im, i) => {
+  const imgs = orderedImages(p);
+  return Promise.all(imgs.map(async (im, i) => {
     const blob = await (await fetch(imgUrl(im.id))).blob();
-    const ext = (im.original.match(/\.[a-z0-9]+$/i) || ['.jpg'])[0];
-    return new File([blob], `${String(i + 1).padStart(2, '0')}-${im.original.replace(/\.[^.]+$/, '')}${ext}`, { type: blob.type });
+    const ext = (im.original.match(/\.[a-z0-9]+$/i) || ['.jpg'])[0].toLowerCase();
+    const n = String(i + 1).padStart(2, '0'), tot = String(imgs.length).padStart(2, '0');
+    return new File([blob], `${slug(p.title)}_foto-${n}-di-${tot}${i === 0 ? '_PRINCIPALE' : ''}${ext}`, { type: blob.type });
   }));
 }
 async function copy(text) { await navigator.clipboard.writeText(text); }
@@ -239,7 +244,7 @@ async function share(kind, p, text) {
   const e = encodeURIComponent(text);
   switch (kind) {
     case 'copy': await copy(text); return toast('Testo copiato');
-    case 'download': download(await imageFiles(p)); return toast('Foto in download (ordine di pubblicazione)');
+    case 'download': { const f = await imageFiles(p), n = f.length; download(f); return toast(`${n} foto scaricate: caricale in ordine numerico (foto-01, 02…), la prima è la principale`); }
     case 'native': {
       const files = await imageFiles(p);
       const data = { text, files };
@@ -248,7 +253,7 @@ async function share(kind, p, text) {
       return toast('Condivisione nativa non supportata: testo copiato e foto scaricate');
     }
     // Instagram, Facebook e LinkedIn (per le foto) non accettano testo/foto via link: copia + scarica + apri.
-    case 'instagram': await copy(text); download(await imageFiles(p)); open('https://www.instagram.com/'); return toast('Testo copiato e foto scaricate: crea il post su Instagram');
+    case 'instagram': await copy(text); download(await imageFiles(p)); open('https://www.instagram.com/'); return toast('Testo copiato e foto scaricate: caricale in ordine numerico (foto-01, 02…), la prima è la principale');
     case 'facebook': await copy(text); open('https://www.facebook.com/'); return toast('Testo copiato: incollalo nel nuovo post (aggiungi le foto da "Scarica foto")');
     case 'linkedin': await copy(text); open('https://www.linkedin.com/feed/?shareActive=true&text=' + e); return toast('Testo copiato; aggiungi le foto da "Scarica foto"');
     case 'x': return open('https://twitter.com/intent/tweet?text=' + e);

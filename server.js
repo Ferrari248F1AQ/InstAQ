@@ -73,7 +73,10 @@ const app = express();
 app.set('trust proxy', 'loopback, linklocal, uniquelocal');
 app.get('/healthz', (_, res) => res.send('ok'));
 app.use(express.json({ limit: '1mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// html/js/css sempre rivalidati: dopo un aggiornamento né il browser né la cache di Cloudflare servono la versione vecchia
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, file) => { if (/\.(html|js|css)$/.test(file)) res.setHeader('Cache-Control', 'no-cache'); },
+}));
 const api = express.Router();
 app.use('/api', api);
 

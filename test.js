@@ -16,6 +16,10 @@ const server = app.listen(0, async () => {
   };
   try {
     assert.equal((await call('/posts')).status, 200, 'nessun login richiesto');
+    for (const f of ['/app.js', '/style.css', '/']) {
+      const r = await fetch(base.replace('/api', '') + f);
+      assert.equal(r.status, 200); assert.equal(r.headers.get('cache-control'), 'no-cache', f + ' deve essere sempre rivalidato');
+    }
     let post = (await call('/posts', { method: 'POST', body: { title: 'Lancio' }, author: 'Anna' })).data;
     const fd = new FormData();
     for (const n of ['1.png', '2.png', '3.png']) fd.append('images', new Blob([PNG], { type: 'image/png' }), n);

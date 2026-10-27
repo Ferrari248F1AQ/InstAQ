@@ -14,9 +14,11 @@ const ICONS = {
 const icon = (k) => `<svg viewBox="0 0 24 24" width="26" height="26" fill="${ICONS[k][0]}" aria-hidden="true"><path d="${ICONS[k][1]}"/></svg>`;
 // Telefono/tablet (iPadOS si presenta come Mac con touch). Su questi dispositivi la condivisione passa SEMPRE dal menu di sistema:
 // non si scaricano file, perché Instagram & co. leggono la libreria foto e non la cartella Download.
-// Con «Richiedi sito desktop» iOS si presenta come Mac: un Mac vero non ha touch (maxTouchPoints 0), quindi Mac/iPhone + touch = telefono o iPad.
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-  || (navigator.maxTouchPoints > 1 && /Mac|iPhone|iPad|iPod|Android/i.test(navigator.platform + ' ' + navigator.userAgent));
+// Telefono/tablet se: lo dice lo user agent o userAgentData; oppure c'è il touch e (il sistema è Mac/iPhone/iPad/Android in «sito desktop»
+// oppure il browser dichiara di poter condividere file). Un computer vero non ha touch o non condivide file.
+const probeShareFiles = (() => { try { return !!navigator.canShare?.({ files: [new File([new Uint8Array([1])], 'a.png', { type: 'image/png' })] }); } catch { return false; } })();
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || navigator.userAgentData?.mobile === true
+  || (navigator.maxTouchPoints > 1 && (/Mac|iPhone|iPad|iPod|Android/i.test(navigator.platform + ' ' + navigator.userAgent) || probeShareFiles));
 const canShareFiles = isMobile && typeof navigator.share === 'function';
 
 let state = { posts: [], current: null, history: null };
@@ -153,7 +155,7 @@ const qrSvg = (url) => { const q = qrcode(0, 'M'); q.addData(url); q.make(); ret
 const NETS = [
   ['instagram', 'Instagram', 'copia il testo e scarica le foto', 'foto in ordine · testo copiato da incollare'],
   ['facebook', 'Facebook', 'copia il testo e scarica le foto', 'foto in ordine · testo copiato da incollare'],
-  ['linkedin', 'LinkedIn', 'copia il testo e scarica le foto', 'salva le foto in libreria · testo copiato da incollare'],
+  ['linkedin', 'LinkedIn', 'copia il testo e scarica le foto', 'foto in ordine · testo copiato da incollare'],
   ['x', 'X', 'testo già scritto', 'testo già scritto'],
   ['whatsapp', 'WhatsApp', 'testo già scritto', 'testo già scritto'],
   ['telegram', 'Telegram', 'testo già scritto', 'testo già scritto'],
@@ -190,10 +192,10 @@ const GUIDES = {
   linkedin: { name: 'LinkedIn', url: 'https://www.linkedin.com/feed/',
     pc: (n) => ['In LinkedIn clicca <b>Inizia un post</b>.', PASTE_PC, n ? `Clicca l'icona immagine e aggiungi le ${n} foto ${ORDER(n)}. Poi pubblica.` : 'Pubblica.'],
     phone: () => ['Apri LinkedIn → <b>Inizia un post</b> e incolla il testo.'],
-    // LinkedIn (come il selettore foto di iOS) legge solo la Libreria foto: le foto vanno salvate lì con «Salva immagini»
-    library: (n) => [`Tocca <b>Salva le foto</b> e nel menu scegli <b>Salva ${n} immagini</b> (non «Salva su File»: LinkedIn legge solo la libreria foto).`,
-      'Tocca <b>Apri LinkedIn</b> → <b>Inizia un post</b> e incolla il testo (tieni premuto nel campo e scegli <b>Incolla</b>).',
-      `Aggiungi le foto dalla libreria: sono le ultime ${n} salvate e <b>la più vecchia delle ${n} è la principale</b>. Toccale in quell'ordine.`] },
+    // Solo foto nel menu (senza testo): così restano disponibili sia l'app LinkedIn sia l'azione «Salva N immagini»
+    library: (n) => ['Tocca <b>Scegli l\'app</b> e nel menu scegli <b>LinkedIn</b>: le foto arrivano già in ordine.',
+      `Se LinkedIn non compare o non mostra le foto: nello stesso menu scegli <b>Salva ${n} immagini</b> (non «Salva su File»: LinkedIn legge solo la libreria foto), poi tocca <b>Apri LinkedIn</b> e selezionale dalla libreria (<b>la più vecchia delle ${n} è la principale</b>).`,
+      'Il testo non arriva da solo: in LinkedIn tieni premuto nel campo del post e scegli <b>Incolla</b>.'] },
   native: { name: 'un\'altra app', url: null,
     pc: () => [], phone: () => ['Nel menu che si apre scegli l\'app.', 'Instagram e altre app <b>non ricevono il testo</b>: se manca, tieni premuto nel campo della didascalia e scegli <b>Incolla</b>.'] },
 };
@@ -204,7 +206,7 @@ function showGuide(kind, text, files, phone, copied) {
     <div class="done">${copied ? '<span>✓ Testo copiato</span>' : '<span class="warn">⚠ Copia non riuscita: copia il testo qui sotto</span>'}${n ? `<span>✓ ${n} foto ${phone ? 'pronte' : 'scaricate'}</span>` : ''}</div>
     ${copied ? '' : `<textarea readonly class="copybox">${esc(text)}</textarea>`}
     <ol>${(lib ? g.library(n) : phone ? g.phone(n) : g.pc(n)).map((x) => `<li>${x}</li>`).join('')}</ol>
-    <div class="row-end"><button id="gclose">Chiudi</button>${lib ? `<button id="glink">Apri ${g.name} ↗</button>` : ''}<button class="primary" id="gopen">${lib ? 'Salva le foto →' : phone ? "Scegli l'app →" : `Apri ${g.name} ↗`}</button></div></div>`;
+    <div class="row-end"><button id="gclose">Chiudi</button>${lib ? `<button id="glink">Apri ${g.name} ↗</button>` : ''}<button class="primary" id="gopen">${phone ? "Scegli l'app →" : `Apri ${g.name} ↗`}</button></div></div>`;
   document.body.appendChild(el);
   const close = () => el.remove();
   el.onclick = (e) => { if (e.target === el) close(); };
@@ -321,7 +323,7 @@ function bindEditor(p) {
     document.querySelectorAll('.menu').forEach((x) => x.classList.remove('open')); if (!open) m.classList.add('open');
   });
   $('diag').onclick = () => {
-    let probe = false; try { probe = !!navigator.canShare?.({ files: [new File([new Uint8Array([1])], 'a.png', { type: 'image/png' })] }); } catch {}
+    const probe = probeShareFiles;
     const rows = [['Riconosciuto come', isMobile ? 'telefono / tablet' : 'computer'], ['Condivisione con foto', canShareFiles ? 'disponibile' : 'NON disponibile'],
       ['navigator.share', typeof navigator.share === 'function' ? 'sì' : 'no'], ['canShare(file)', probe ? 'sì' : 'no'], ['HTTPS', window.isSecureContext ? 'sì' : 'NO (la condivisione richiede HTTPS)'],
       ['platform', navigator.platform], ['touch', navigator.maxTouchPoints], ['userAgent', navigator.userAgent]];
@@ -377,6 +379,11 @@ function download(files) {
 }
 const open = (u) => window.open(u, '_blank', 'noopener');
 
+function showBusy(msg) {
+  const el = document.createElement('div'); el.className = 'modal';
+  el.innerHTML = `<div class="dialog busy"><div class="spin"></div><b>${msg}</b><span class="mute">Le foto grandi possono richiedere qualche secondo</span></div>`;
+  document.body.appendChild(el); return () => el.remove();
+}
 async function share(kind, p, text) {
   const e = encodeURIComponent(text);
   switch (kind) {
@@ -387,8 +394,9 @@ async function share(kind, p, text) {
       const phone = canShareFiles;
       if (isMobile && !phone) { await copy(text); return toast('Testo copiato. Per inviare anche le foto apri l\'app con un indirizzo HTTPS (quello di Cloudflare): il menu di condivisione del telefono lo richiede'); }
       if (kind === 'native' && !phone) return toast('Apri questo post dal telefono per condividere con le altre app');
-      const copied = await copy(text);
-      const files = p.images.length ? await imageFiles(p) : [];
+      const done = showBusy('Preparo testo e foto…');
+      let copied, files;
+      try { copied = await copy(text); files = p.images.length ? await imageFiles(p) : []; } finally { done(); }
       if (!phone && files.length) download(files);
       return showGuide(kind, text, files, phone, copied);
     }

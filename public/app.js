@@ -19,6 +19,7 @@ const canShareFiles = isMobile && typeof navigator.share === 'function';
 
 let state = { posts: [], current: null, history: null };
 let saveTimer = null;
+let uploading = false;
 const getName = () => { try { return localStorage.getItem('instaq-name') || ''; } catch { return ''; } };
 const setName = (n) => { try { localStorage.setItem('instaq-name', n); } catch {} };
 
@@ -262,11 +263,20 @@ function bindEditor(p) {
   $('link').onclick = guard(async () => { await copy(postLink(p.id)); toast('Link copiato: incollalo ai colleghi'); });
 
   // foto
-  const upload = guard(async (files) => {
-    await flush(); toast('Caricamento…');
-    const fd = new FormData(); [...files].forEach((f) => fd.append('images', f));
-    setPost(await api(`/posts/${p.id}/images`, { method: 'POST', body: fd })); render();
-  });
+  // Un solo caricamento alla volta (alcuni browser mobili emettono due volte l'evento «change»);
+  // se la richiesta fallisce il server potrebbe aver salvato comunque: si ricarica lo stato reale prima di far riprovare
+  const upload = async (files) => {
+    if (uploading || !files.length) return;
+    uploading = true;
+    try {
+      await flush(); toast('Caricamento…');
+      const fd = new FormData(); [...files].forEach((f) => fd.append('images', f));
+      setPost(await api(`/posts/${p.id}/images`, { method: 'POST', body: fd })); render();
+    } catch (e) {
+      toast(e.message + ' — controllo cosa è stato salvato…');
+      try { await loadPosts(p.id); render(); } catch {}
+    } finally { uploading = false; }
+  };
   $('file').onchange = (e) => upload(e.target.files);
   const grid = $('photos');
   grid.ondragover = (e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); grid.classList.add('over'); } };

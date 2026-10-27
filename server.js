@@ -144,7 +144,8 @@ api.delete('/posts/:id/images/:imgId', withPost, (req, res) => {
 api.get('/images/:imgId', (req, res) => {
   const im = q.one('SELECT * FROM images WHERE id=?', Number(req.params.imgId));
   if (!im) return res.status(404).end();
-  res.type(im.mime).set('Cache-Control', 'private, max-age=3600').sendFile(path.join(UPLOAD_DIR, im.file));
+  // no-cache = il browser rivalida sempre (ETag): se un id viene riusato dopo una cancellazione non si vede/condivide la foto vecchia
+  res.type(im.mime).set('Cache-Control', 'private, no-cache').sendFile(path.join(UPLOAD_DIR, im.file));
 });
 api.get('/posts/:id/revisions', withPost, (req, res) => {
   res.json(q.all('SELECT id,summary,created_at,author,snapshot FROM revisions WHERE post_id=? ORDER BY id DESC', req.post.id)

@@ -32,6 +32,8 @@ const server = app.listen(0, async () => {
     assert.deepEqual(post.images.map((i) => i.id), [i3, i1, i2]);
     assert.equal(post.coverId, i2);
     assert.equal((await call(`/images/${i1}`)).status, 200);
+    const hdr = (await fetch(base + `/images/${i1}`)).headers.get('cache-control');
+    assert.equal(hdr, 'private, no-cache', 'le foto vanno rivalidate: gli id si riusano dopo una cancellazione');
 
     const edited = (await call(`/posts/${post.id}`, { method: 'PUT', body: { text: 'Testo di Bob', status: 'ready' }, author: 'Bob' })).data;
     assert.equal(edited.text, 'Testo di Bob');

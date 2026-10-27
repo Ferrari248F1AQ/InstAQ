@@ -138,24 +138,63 @@ function editor(p) {
     <textarea id="text" placeholder="Scrivi il testo del post…">${esc(p.text)}</textarea>
     <div class="mute" id="count"></div>
   </section>
-  <section>
-    <div class="label"><h2>Pubblica sui social</h2><span class="mute">Usa il testo e le foto di questa pagina</span></div>
-    <div class="socials">
-      ${[['instagram', 'Instagram', 'copia il testo, scarica le foto e apre Instagram'],
-         ['facebook', 'Facebook', 'copia il testo e apre Facebook'],
-         ['linkedin', 'LinkedIn', 'apre LinkedIn con il testo già scritto'],
-         ['x', 'X', 'apre X con il testo già scritto'],
-         ['whatsapp', 'WhatsApp', 'apre WhatsApp con il testo già scritto'],
-         ['telegram', 'Telegram', 'apre Telegram con il testo già scritto']].map(([k, n, h]) =>
-        `<button class="soc" data-s="${k}">${icon(k)}<span><b>${n}</b><small>${h}</small></span></button>`).join('')}
-    </div>
-    <div class="extra">
-      ${canShareFiles ? '<button class="primary" data-s="native">📱 Condividi con un\'altra app<small>apre il menu del telefono con testo e foto in ordine</small></button>' : ''}
-      <button data-s="copy">Copia solo il testo</button>
-      <button data-s="download">Scarica solo le foto</button>
-    </div>
-  </section>
+  ${publishHtml(p)}
   ${state.history ? historyHtml(p) : ''}`;
+}
+
+const qrSvg = (url) => { const q = qrcode(0, 'M'); q.addData(url); q.make(); return q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }); };
+const NETS = [
+  ['instagram', 'Instagram', 'copia il testo e scarica le foto', 'scegli Instagram nel menu del telefono'],
+  ['facebook', 'Facebook', 'copia il testo e scarica le foto', 'scegli Facebook nel menu del telefono'],
+  ['linkedin', 'LinkedIn', 'testo già scritto; foto da aggiungere', 'testo già scritto; foto da aggiungere'],
+  ['x', 'X', 'testo già scritto', 'testo già scritto'],
+  ['whatsapp', 'WhatsApp', 'testo già scritto', 'testo già scritto'],
+  ['telegram', 'Telegram', 'testo già scritto', 'testo già scritto'],
+];
+function publishHtml(p) {
+  const top = canShareFiles
+    ? `<button class="primary big" data-s="native">📱 Condividi con un'altra app<small>Consigliato · passa testo e foto già in ordine all'app che scegli (Instagram, WhatsApp…)</small></button>`
+    : `<div class="reco"><div class="qr">${qrSvg(postLink(p.id))}</div><div>
+        <b>Consigliato: continua dal telefono</b>
+        <p>Inquadra il codice con la fotocamera: si apre questo post sul telefono. Lì, con «Condividi con un'altra app», mandi testo e foto già in ordine a Instagram o a qualsiasi altra app, senza scaricare nulla.</p></div></div>`;
+  return `<section>
+    <div class="label"><h2>Pubblica sui social</h2><span class="mute">Usa il testo e le foto di questa pagina</span></div>
+    ${top}
+    <div class="mute">${canShareFiles ? 'Oppure apri direttamente un social:' : 'Oppure dal computer (ti guidiamo passo per passo):'}</div>
+    <div class="socials">${NETS.map(([k, n, hPc, hPhone]) =>
+      `<button class="soc" data-s="${k}">${icon(k)}<span><b>${n}</b><small>${canShareFiles ? hPhone : hPc}</small></span></button>`).join('')}</div>
+    <div class="extra"><button data-s="copy">Copia solo il testo</button><button data-s="download">Scarica solo le foto</button></div>
+  </section>`;
+}
+
+// Guida passo-passo (desktop): testo copiato e foto scaricate, poi i passi sul social
+const GUIDES = {
+  instagram: { name: 'Instagram', url: 'https://www.instagram.com/', steps: (n) => [
+    'Su Instagram clicca <b>Crea</b> (+) → <b>Post</b>.',
+    n ? `Seleziona le ${n} foto dalla cartella Download <b>nell'ordine foto-01, foto-02…</b> (la 01 è la principale).` : 'Scegli le foto.',
+    'Nella didascalia incolla il testo (<b>Ctrl+V</b>, su Mac <b>⌘V</b>) e pubblica.'] },
+  facebook: { name: 'Facebook', url: 'https://www.facebook.com/', steps: (n) => [
+    'Su Facebook clicca «A cosa stai pensando?».',
+    n ? `Incolla il testo (<b>Ctrl+V</b>, su Mac <b>⌘V</b>), poi aggiungi le ${n} foto <b>nell'ordine foto-01, foto-02…</b>` : 'Incolla il testo (<b>Ctrl+V</b>, su Mac <b>⌘V</b>).',
+    'Pubblica.'] },
+  linkedin: { name: 'LinkedIn', url: null, steps: (n) => [
+    'Si apre LinkedIn con il testo già scritto.',
+    n ? `Clicca l'icona immagine e aggiungi le ${n} foto <b>nell'ordine foto-01, foto-02…</b>` : 'Controlla il testo.',
+    'Pubblica.'] },
+};
+function showGuide(kind, p, text, nPhotos) {
+  const g = GUIDES[kind];
+  const url = g.url || ('https://www.linkedin.com/feed/?shareActive=true&text=' + encodeURIComponent(text));
+  const el = document.createElement('div'); el.className = 'modal';
+  el.innerHTML = `<div class="dialog"><h2>Pubblica su ${g.name}</h2>
+    <div class="done"><span>✓ Testo copiato</span>${nPhotos ? `<span>✓ ${nPhotos} foto scaricate</span>` : ''}</div>
+    <ol>${g.steps(nPhotos).map((x) => `<li>${x}</li>`).join('')}</ol>
+    <div class="row-end"><button id="gclose">Chiudi</button><button class="primary" id="gopen">Apri ${g.name} ↗</button></div></div>`;
+  document.body.appendChild(el);
+  const close = () => el.remove();
+  el.onclick = (e) => { if (e.target === el) close(); };
+  el.querySelector('#gclose').onclick = close;
+  el.querySelector('#gopen').onclick = () => { open(url); close(); };
 }
 
 function historyHtml(p) {
@@ -277,10 +316,14 @@ async function share(kind, p, text) {
       await copy(text); download(files);
       return toast('Condivisione nativa non supportata: testo copiato e foto scaricate');
     }
-    // Instagram, Facebook e LinkedIn (per le foto) non accettano testo/foto via link: copia + scarica + apri.
-    case 'instagram': await copy(text); download(await imageFiles(p)); open('https://www.instagram.com/'); return toast('Testo copiato e foto scaricate: caricale in ordine numerico (foto-01, 02…), la prima è la principale');
-    case 'facebook': await copy(text); open('https://www.facebook.com/'); return toast('Testo copiato: incollalo nel nuovo post (aggiungi le foto da "Scarica foto")');
-    case 'linkedin': await copy(text); open('https://www.linkedin.com/feed/?shareActive=true&text=' + e); return toast('Testo copiato; aggiungi le foto da "Scarica foto"');
+    // Nessun social accetta foto via link: su telefono si usa il menu di sistema, su desktop copia + scarica + guida.
+    case 'instagram': case 'facebook': case 'linkedin': {
+      if (canShareFiles && kind !== 'linkedin') return share('native', p, text);
+      await copy(text);
+      const files = p.images.length ? await imageFiles(p) : [];
+      if (files.length) download(files);
+      return showGuide(kind, p, text, files.length);
+    }
     case 'x': return open('https://twitter.com/intent/tweet?text=' + e);
     case 'whatsapp': return open('https://wa.me/?text=' + e);
     case 'telegram': return open('https://t.me/share/url?url=%20&text=' + e);

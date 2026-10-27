@@ -15,7 +15,9 @@ npm test
 - **Foto**: upload multiplo/drag&drop, riordino con drag&drop o frecce, ★ foto principale (esce per prima nella condivisione).
 - **Condivisione interna**: link diretto a ogni post, chiunque lo apra può modificarlo.
 - **Cronologia** (stile git): ogni modifica registra autore e riepilogo; si può ripristinare un testo precedente.
-- **Condivisione**: Condividi nativo (testo + foto, su mobile apre Instagram/WhatsApp ecc.), X, WhatsApp, Telegram, LinkedIn, Facebook, Instagram, Copia testo, Scarica foto.
+- **Condivisione**: su telefono «Condividi con un'altra app» (testo + foto in ordine, nell'app scelta) è l'azione consigliata. Su computer un QR code porta il post sul telefono; in alternativa Instagram/Facebook/LinkedIn copiano il testo, scaricano le foto con nomi ordinati (`titolo_foto-01-di-03_PRINCIPALE.jpg`) e mostrano una guida passo-passo. X, WhatsApp, Telegram aprono con il testo già scritto.
+
+Il QR usa l'indirizzo con cui apri l'app: per funzionare dal telefono apri l'app dall'hostname Cloudflare, non da `localhost`. Libreria QR inclusa in `public/vendor/qrcode.js` (qrcode-generator, MIT).
 
 ## Limiti noti delle piattaforme
 X, WhatsApp, Telegram e LinkedIn accettano il testo via link; **nessun social accetta foto via link**. Per Instagram/Facebook/LinkedIn il tasto copia il testo, scarica le foto già in ordine e apre il sito. Su smartphone il tasto «Condividi» passa testo e foto direttamente all'app scelta. La pubblicazione automatica via API ufficiali (Meta, LinkedIn, X) richiede app e approvazioni dei singoli social: è un'estensione possibile.

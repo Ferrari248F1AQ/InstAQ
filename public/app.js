@@ -78,10 +78,13 @@ function render() {
     <h1>InstAQ</h1>
     <button class="primary" id="new">+ Nuovo post</button>
     <div id="list" class="list">${listHtml()}</div>
-    <label class="me">Firmi come <input id="name" placeholder="il tuo nome" value="${esc(getName())}"></label>
+    <button class="me" id="name" title="Il tuo nome compare nella cronologia delle modifiche">👤 ${getName() ? esc(getName()) : 'Imposta il tuo nome'}</button>
   </aside><main>${p ? editor(p) : '<div class="empty">Seleziona un post a sinistra<br>o creane uno nuovo.</div>'}</main></div>`;
   bindList();
-  document.getElementById('name').onchange = (e) => setName(e.target.value.trim());
+  document.getElementById('name').onclick = (e) => {
+    const n = prompt('Il tuo nome (compare nella cronologia delle modifiche):', getName());
+    if (n !== null) { setName(n.trim()); e.target.textContent = '👤 ' + (n.trim() || 'Imposta il tuo nome'); }
+  };
   document.getElementById('new').onclick = guard(async () => {
     await flush();
     const np = await api('/posts', { method: 'POST', body: { title: 'Nuovo post' } });
@@ -102,23 +105,13 @@ function editor(p) {
   <div class="head">
     <input id="title" class="title" placeholder="Titolo del post" value="${esc(p.title)}">
     <div class="actions">
-      <select id="status" title="Stato">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${p.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
-      <button id="link">🔗 Copia link</button>
-      <div class="menu-wrap"><button class="primary" data-menu="shareMenu">Condividi ▾</button>
-        <div class="menu" id="shareMenu">
-          <button data-s="native">📱 Condividi con le foto<small>dal cellulare, nell'app che scegli</small></button>
-          <button data-s="instagram">Instagram<small>copia testo + scarica foto</small></button>
-          <button data-s="facebook">Facebook<small>copia testo, apre Facebook</small></button>
-          <button data-s="linkedin">LinkedIn<small>testo precompilato</small></button>
-          <button data-s="x">X<small>testo precompilato</small></button>
-          <button data-s="whatsapp">WhatsApp<small>testo precompilato</small></button>
-          <button data-s="telegram">Telegram<small>testo precompilato</small></button>
-          <hr><button data-s="copy">Copia solo il testo</button><button data-s="download">Scarica solo le foto</button>
-        </div></div>
+      <button id="link" title="Copia il link di questo post da mandare ai colleghi">🔗 Copia link</button>
       <div class="menu-wrap"><button data-menu="moreMenu" title="Altro">⋯</button>
         <div class="menu" id="moreMenu"><button id="hist">Cronologia modifiche</button><button class="danger" id="delpost">Elimina post</button></div></div>
     </div>
   </div>
+  <div class="status"><span class="mute">Stato</span>${Object.entries(STATUS).map(([k, v]) =>
+    `<button class="seg ${p.status === k ? 'on ' + k : ''}" data-status="${k}">${v}</button>`).join('')}</div>
 
   <section>
     <div class="label"><h2>Foto</h2><span class="mute">La prima è quella principale · trascina per cambiare ordine</span></div>
@@ -131,6 +124,22 @@ function editor(p) {
     <div class="label"><h2>Testo</h2><span class="mute" id="savestate">Salvato ✓</span></div>
     <textarea id="text" placeholder="Scrivi il testo del post…">${esc(p.text)}</textarea>
     <div class="mute" id="count"></div>
+  </section>
+  <section>
+    <div class="label"><h2>Pubblica sui social</h2><span class="mute">Usa il testo e le foto di questa pagina</span></div>
+    <div class="socials">
+      <button class="soc" data-s="instagram"><b>Instagram</b><small>copia il testo, scarica le foto e apre Instagram</small></button>
+      <button class="soc" data-s="facebook"><b>Facebook</b><small>copia il testo e apre Facebook</small></button>
+      <button class="soc" data-s="linkedin"><b>LinkedIn</b><small>apre LinkedIn con il testo già scritto</small></button>
+      <button class="soc" data-s="x"><b>X</b><small>apre X con il testo già scritto</small></button>
+      <button class="soc" data-s="whatsapp"><b>WhatsApp</b><small>apre WhatsApp con il testo già scritto</small></button>
+      <button class="soc" data-s="telegram"><b>Telegram</b><small>apre Telegram con il testo già scritto</small></button>
+    </div>
+    <div class="extra">
+      <button data-s="native">📱 Condividi dal cellulare (testo + foto)</button>
+      <button data-s="copy">Copia solo il testo</button>
+      <button data-s="download">Scarica solo le foto</button>
+    </div>
   </section>
   ${state.history ? historyHtml(p) : ''}`;
 }
@@ -154,7 +163,9 @@ function bindEditor(p) {
   counter();
   $('title').oninput = scheduleSave;
   $('text').oninput = () => { counter(); scheduleSave(); };
-  $('status').onchange = guard(async () => { await flush(); await refresh({ status: $('status').value }); await loadPosts(); renderList(); });
+  document.querySelectorAll('[data-status]').forEach((b) => b.onclick = guard(async () => {
+    await flush(); await refresh({ status: b.dataset.status }); await loadPosts(); renderList();
+  }));
   $('link').onclick = guard(async () => { await copy(postLink(p.id)); toast('Link copiato: incollalo ai colleghi'); });
 
   // foto
